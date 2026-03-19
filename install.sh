@@ -137,17 +137,17 @@ fi
 log "→ Downloading latest scripts (v1.1.0)..."
 log "→ Using v1.1.0 with iOS QR integration"
 
-# Download setup script from tools directory
-if ! curl -fsSL "$RAW_URL/$BRANCH/tools/setup-trustnet-node.sh?nocache=$(date +%s)" -o setup-trustnet-node.sh.tmp; then
-    log_error "Failed to download setup script from tools/setup-trustnet-node.sh"
+# Download setup script from core/tools directory (same structure as jcgarcia/TrustNet)
+if ! curl -fsSL "$RAW_URL/$BRANCH/core/tools/setup-trustnet-node.sh?nocache=$(date +%s)" -o setup-trustnet-node.sh.tmp; then
+    log_error "Failed to download setup script from core/tools/setup-trustnet-node.sh"
     exit 1
 fi
 mv setup-trustnet-node.sh.tmp setup-trustnet-node.sh
 chmod +x setup-trustnet-node.sh
 sed -i 's/\r$//' setup-trustnet-node.sh 2>/dev/null || dos2unix setup-trustnet-node.sh 2>/dev/null || true
 
-# Download alpine-install.exp from tools
-if ! curl -fsSL "$RAW_URL/$BRANCH/tools/alpine-install.exp?nocache=$(date +%s)" -o alpine-install.exp.tmp; then
+# Download alpine-install.exp from core/tools
+if ! curl -fsSL "$RAW_URL/$BRANCH/core/tools/alpine-install.exp?nocache=$(date +%s)" -o alpine-install.exp.tmp; then
     log_error "Failed to download alpine-install.exp"
     exit 1
 fi
@@ -171,7 +171,7 @@ MODULES=(
 )
 
 for module in "${MODULES[@]}"; do
-    if ! curl -fsSL "$RAW_URL/$BRANCH/tools/lib/$module?nocache=$(date +%s)" -o "lib/$module.tmp"; then
+    if ! curl -fsSL "$RAW_URL/$BRANCH/core/tools/lib/$module?nocache=$(date +%s)" -o "lib/$module.tmp"; then
         log_error "Failed to download core module: $module"
         exit 1
     fi
@@ -188,7 +188,7 @@ V1_1_MODULES=(
 )
 
 for module in "${V1_1_MODULES[@]}"; do
-    if ! curl -fsSL "$RAW_URL/$BRANCH/tools/lib/$module?nocache=$(date +%s)" -o "lib/$module.tmp" 2>/dev/null; then
+    if ! curl -fsSL "$RAW_URL/$BRANCH/core/tools/lib/$module?nocache=$(date +%s)" -o "lib/$module.tmp" 2>/dev/null; then
         log "⚠ Optional v1.1.0 module not found: $module (may be embedded in setup script)"
     else
         mv "lib/$module.tmp" "lib/$module"
