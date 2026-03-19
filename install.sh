@@ -1,20 +1,20 @@
 #!/bin/bash
 #
 # TrustNet Node One-Liner Installer
-# Usage: curl -fsSL https://raw.githubusercontent.com/jcgarcia/TrustNet/main/install.sh | bash
+# Usage: curl -fsSL https://raw.githubusercontent.com/TrustNetT/trustnet/main/install.sh | bash
 # Or:    curl -fsSL ... | bash -s -- --version v1.1.0 --auto
 # Version: 1.1.0 (supports v1.0.0 and v1.1.0)
 #
 
 set -e
 
-REPO_URL="https://github.com/jcgarcia/TrustNet.git"
-RAW_URL="https://raw.githubusercontent.com/jcgarcia/TrustNet"
+REPO_URL="https://github.com/TrustNetT/trustnet.git"
+RAW_URL="https://raw.githubusercontent.com/TrustNetT/trustnet"
 REPO_DIR="$HOME/trustnet"
 BRANCH="${TRUSTNET_BRANCH:-main}"
 
 # Parse command-line arguments
-TRUSTNET_VERSION="${TRUSTNET_VERSION:-v1.0.0}"  # Default to v1.0.0
+TRUSTNET_VERSION="${TRUSTNET_VERSION:-v1.1.0}"  # Default to v1.1.0 (latest)
 AUTO_MODE=false
 ARCH="x86_64"
 UPGRADE_MODE=false
