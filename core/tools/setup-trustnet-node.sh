@@ -848,29 +848,36 @@ log_msg ""
 
 # Deploy setup.py
 log_msg "Deploying setup.py to VM..."
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" "mkdir -p /opt/trustnet/api /opt/trustnet/web/templates" || {
-    log_msg "WARNING: SSH connection failed. Files may not be deployed."
-    log_msg "You can manually deploy with:"
-    log_msg "  scp -P $VM_SSH_PORT '$API_DIR/setup.py' $VM_USERNAME@$VM_HOSTNAME:/opt/trustnet/api/"
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" "sudo mkdir -p /opt/trustnet/api /opt/trustnet/web/templates && sudo chmod 755 /opt/trustnet /opt/trustnet/api /opt/trustnet/web /opt/trustnet/web/templates" || {
+    log_msg "ERROR: Failed to create directories on VM"
+    log_msg "Ensure warden user has passwordless sudo, or manually run:"
+    log_msg "  ssh -p $VM_SSH_PORT $VM_USERNAME@$VM_HOSTNAME 'sudo mkdir -p /opt/trustnet/api /opt/trustnet/web/templates'"
+    exit 1
 }
 
-scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -P "$VM_SSH_PORT" "$API_DIR/setup.py" "$VM_USERNAME@$VM_HOSTNAME:/opt/trustnet/api/" 2>/dev/null || \
-    log_msg "WARNING: Failed to deploy setup.py"
+cat "$API_DIR/setup.py" | ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" "sudo tee /opt/trustnet/api/setup.py > /dev/null" || {
+    log_msg "ERROR: Failed to deploy setup.py"
+    exit 1
+}
 
 log_msg "✅ setup.py deployed"
 
 # Deploy first-setup.html
 log_msg "Deploying first-setup.html to VM..."
-scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -P "$VM_SSH_PORT" "$WEB_DIR/templates/first-setup.html" "$VM_USERNAME@$VM_HOSTNAME:/opt/trustnet/web/templates/" 2>/dev/null || \
-    log_msg "WARNING: Failed to deploy first-setup.html"
+cat "$WEB_DIR/templates/first-setup.html" | ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" "sudo tee /opt/trustnet/web/templates/first-setup.html > /dev/null" || {
+    log_msg "ERROR: Failed to deploy first-setup.html"
+    exit 1
+}
 
 log_msg "✅ first-setup.html deployed"
 
 # Deploy requirements.txt
 log_msg "Installing FastAPI on VM..."
 REQ_FILE="$API_DIR/requirements.txt"
-scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -P "$VM_SSH_PORT" "$REQ_FILE" "$VM_USERNAME@$VM_HOSTNAME:/tmp/requirements.txt" 2>/dev/null || \
-    log_msg "WARNING: Failed to deploy requirements.txt"
+cat "$REQ_FILE" | ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" "sudo tee /tmp/requirements.txt > /dev/null" || {
+    log_msg "ERROR: Failed to deploy requirements.txt"
+    exit 1
+}
 
 # Install dependencies on VM
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" << 'SSH_INSTALL_EOF'
@@ -930,8 +937,10 @@ log_msg "✅ Setup API service created and started"
 
 # Deploy Caddy configuration
 log_msg "Updating Caddy configuration..."
-scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -P "$VM_SSH_PORT" "$CADDY_CONFIG" "$VM_USERNAME@$VM_HOSTNAME:/tmp/Caddyfile.setup" 2>/dev/null || \
-    log_msg "WARNING: Failed to deploy Caddy config"
+cat "$CADDY_CONFIG" | ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" "sudo tee /tmp/Caddyfile.setup > /dev/null" || {
+    log_msg "ERROR: Failed to deploy Caddy config"
+    exit 1
+}
 
 # Merge Caddy config  
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" << 'SSH_CADDY_EOF'
