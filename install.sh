@@ -1,16 +1,65 @@
 #!/bin/bash
 #
 # TrustNet Node One-Liner Installer
-# Usage: curl -fsSL https://raw.githubusercontent.com/TrustNetT/trustnet/main/install.sh | bash
-# Version: 1.1.0
+# Usage: curl -fsSL https://raw.githubusercontent.com/jcgarcia/TrustNet/main/install.sh | bash
+# Or:    curl -fsSL ... | bash -s -- --version v1.1.0 --auto
+# Version: 1.1.0 (supports v1.0.0 and v1.1.0)
 #
 
 set -e
 
-REPO_URL="https://github.com/TrustNetT/trustnet.git"
-RAW_URL="https://raw.githubusercontent.com/TrustNetT/trustnet"
+REPO_URL="https://github.com/jcgarcia/TrustNet.git"
+RAW_URL="https://raw.githubusercontent.com/jcgarcia/TrustNet"
 REPO_DIR="$HOME/trustnet"
 BRANCH="${TRUSTNET_BRANCH:-main}"
+
+# Parse command-line arguments
+TRUSTNET_VERSION="${TRUSTNET_VERSION:-v1.0.0}"  # Default to v1.0.0
+AUTO_MODE=false
+ARCH="x86_64"
+UPGRADE_MODE=false
+FRESH_MODE=false
+
+# Parse arguments from command line (bash -s -- arg1 arg2)
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --version)
+            TRUSTNET_VERSION="$2"
+            shift 2
+            ;;
+        --auto|-y)
+            AUTO_MODE=true
+            shift
+            ;;
+        --arch)
+            ARCH="$2"
+            shift 2
+            ;;
+        --upgrade)
+            UPGRADE_MODE=true
+            shift
+            ;;
+        --fresh)
+            FRESH_MODE=true
+            shift
+            ;;
+        *)
+            shift
+            ;;
+    esac
+done
+
+# Validate version
+case "$TRUSTNET_VERSION" in
+    v1.0.0|v1.1.0)
+        : # Valid versions
+        ;;
+    *)
+        log_error "Unknown version: $TRUSTNET_VERSION"
+        log_error "Supported versions: v1.0.0, v1.1.0"
+        exit 1
+        ;;
+esac
 
 # Setup logging
 LOG_DIR="${HOME}/.trustnet/logs"
@@ -38,9 +87,20 @@ log "║        Blockchain-Based Trust Network (Web3)             ║"
 log "║                                                          ║"
 log "╚══════════════════════════════════════════════════════════╝"
 log ""
-log "Branch: $BRANCH"
-log "Installation log: $LOG_FILE"
+log "Configuration:"
+log "  Version: $TRUSTNET_VERSION"
+log "  Architecture: $ARCH"
+log "  Auto mode: $AUTO_MODE"
+log "  Upgrade: $UPGRADE_MODE"
+log "  Branch: $BRANCH"
+log "  Installation log: $LOG_FILE"
 log ""
+
+# Handle --fresh mode (remove existing repo)
+if [[ "$FRESH_MODE" == true ]] && [[ -d "$REPO_DIR" ]]; then
+    log "→ Fresh mode: removing existing installation..."
+    rm -rf "$REPO_DIR"
+fi
 
 # Create directory structure
 mkdir -p "$REPO_DIR"
@@ -73,20 +133,29 @@ if [ -d "$IDENTITY_BACKUP" ]; then
     log "  Your identity will be restored during installation"
 fi
 
-# Download latest scripts (always get fresh version from core/versions)
-log "→ Downloading latest core scripts (v1.1.0)..."
+# Download latest scripts (always get fresh version from core)
+log "→ Downloading latest core scripts for $TRUSTNET_VERSION..."
 
-# Download setup script from core/versions/v1.1.0 directory
-if ! curl -fsSL "$RAW_URL/$BRANCH/core/versions/v1.1.0/tools/setup-trustnet-node.sh?nocache=$(date +%s)" -o setup-trustnet-node.sh.tmp; then
-    log_error "Failed to download setup script"
+# Determine setup script location based on version
+if [[ "$TRUSTNET_VERSION" == "v1.1.0" ]]; then
+    SETUP_SCRIPT_PATH="core/versions/v1.1.0/tools/setup-trustnet-node.sh"
+    log "→ Using v1.1.0 with iOS QR integration"
+else
+    SETUP_SCRIPT_PATH="core/tools/setup-trustnet-node.sh"
+    log "→ Using v1.0.0 (production stable)"
+fi
+
+# Download setup script from core directory
+if ! curl -fsSL "$RAW_URL/$BRANCH/$SETUP_SCRIPT_PATH?nocache=$(date +%s)" -o setup-trustnet-node.sh.tmp; then
+    log_error "Failed to download setup script from $SETUP_SCRIPT_PATH"
     exit 1
 fi
 mv setup-trustnet-node.sh.tmp setup-trustnet-node.sh
 chmod +x setup-trustnet-node.sh
 sed -i 's/\r$//' setup-trustnet-node.sh 2>/dev/null || dos2unix setup-trustnet-node.sh 2>/dev/null || true
 
-# Download alpine-install.exp from core/versions/v1.1.0
-if ! curl -fsSL "$RAW_URL/$BRANCH/core/versions/v1.1.0/tools/alpine-install.exp?nocache=$(date +%s)" -o alpine-install.exp.tmp; then
+# Download alpine-install.exp from core
+if ! curl -fsSL "$RAW_URL/$BRANCH/core/tools/alpine-install.exp?nocache=$(date +%s)" -o alpine-install.exp.tmp; then
     log_error "Failed to download alpine-install.exp"
     exit 1
 fi
@@ -94,7 +163,7 @@ mv alpine-install.exp.tmp alpine-install.exp
 sed -i 's/\r$//' alpine-install.exp 2>/dev/null || dos2unix alpine-install.exp 2>/dev/null || true
 
 # Download core modules
-log "→ Downloading core modules..."
+log "→ Downloading core modules for $TRUSTNET_VERSION..."
 mkdir -p lib
 
 # List of core modules to download
@@ -118,6 +187,25 @@ for module in "${MODULES[@]}"; do
     chmod +x "lib/$module"
 done
 
+# Download version-specific modules if v1.1.0
+if [[ "$TRUSTNET_VERSION" == "v1.1.0" ]]; then
+    log "→ Downloading v1.1.0-specific modules..."
+    
+    V1_1_MODULES=(
+        "ios-integration.sh"
+        "setup-fastapi.sh"
+    )
+    
+    for module in "${V1_1_MODULES[@]}"; do
+        if ! curl -fsSL "$RAW_URL/$BRANCH/core/versions/v1.1.0/tools/lib/$module?nocache=$(date +%s)" -o "lib/$module.tmp" 2>/dev/null; then
+            log "⚠ Optional v1.1.0 module not found: $module (may be embedded in setup script)"
+        else
+            mv "lib/$module.tmp" "lib/$module"
+            chmod +x "lib/$module"
+        fi
+    done
+fi
+
 log "✓ Core scripts and modules downloaded"
 
 # Notify about data preservation
@@ -130,8 +218,19 @@ log "→ Starting installation..."
 log "→ Detailed logs will continue in: $LOG_FILE"
 log ""
 
-# Export log file for setup script
+# Export variables for setup script
 export TRUSTNET_LOG_FILE="$LOG_FILE"
+export TRUSTNET_VERSION="$TRUSTNET_VERSION"
+export TRUSTNET_ARCH="$ARCH"
 
-# Run the setup script with --auto flag
-exec ./setup-trustnet-node.sh --auto
+# Build arguments for setup script
+SETUP_ARGS=""
+if [[ "$AUTO_MODE" == "true" ]]; then
+    SETUP_ARGS="$SETUP_ARGS --auto"
+fi
+if [[ "$UPGRADE_MODE" == "true" ]]; then
+    SETUP_ARGS="$SETUP_ARGS --upgrade"
+fi
+
+# Run the versioned setup script with parsed arguments
+exec ./setup-trustnet-node.sh --arch=$ARCH $SETUP_ARGS

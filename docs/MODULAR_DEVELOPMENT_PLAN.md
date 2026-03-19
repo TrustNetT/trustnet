@@ -644,37 +644,96 @@ docs/**/*                           # Documentation
 
 ---
 
-## Questions for User
+## Technology Decisions
 
-Before implementing, please confirm:
+### ✅ Confirmed Choices
 
-1. **Development Method Preference?**
-   - Option 1: Rsync (recommended - simple, reliable)
-   - Option 2: Vite dev server (modern, full features)
-   - Option 3: QEMU shared folder (requires core change)
+1. **Development Method: Rsync** ✅
+   - Simple, reliable file synchronization
+   - Auto-watch with `inotifywait`
+   - 2-5 second sync latency
+   - Works perfectly with dev-disk architecture
+   - Implementation: `tools/dev-sync.sh`
 
-2. **Frontend Technology?**
-   - Plain HTML/CSS/JS (simple, lightweight)
-   - Vite + Modern JS (better DX, build step)
-   - React/Vue (full framework, more setup)
+2. **Frontend Technology: Vite + Modern JS** ✅
+   - Minimal bundle size (15-30KB per module)
+   - Simple, maintainable vanilla JavaScript
+   - Modern ES6+ features with Vite build tooling
+   - Perfect for modular architecture (no framework lock-in)
+   - Easy Progressive Web App (PWA) support for mobile
+   - Works on desktop, iOS, Android from same codebase
+4. **Backend Language: Python + FastAPI** ✅
+   - Rapid development (2-3x faster than Go)
+   - Modules communicate with Cosmos SDK via RPC/REST APIs
+   - FastAPI for modern async Python web framework
+   - Can use Go for performance-critical modules later if needed
+   - Note: Python runtime in Alpine VM (~50MB), but still lightweight
+   - Implementation: `modules/*/api/` with FastAPI
 
-3. **Backend Language?**
-   - Go (aligns with Cosmos SDK)
-   - Node.js (easier for JS developers)
-   - Python (rapid prototyping)
+5. **First Module to Build: Identity Registration** ✅
+   - Foundation for trust network
+   - Includes client-side key generation
+   - Proves modular architecture works
+   - Most critical for TrustNet functionality
 
-4. **First Module to Build?**
-   - Identity Registration (most critical)
-   - Transaction Viewer (most visible)
-   - Key Management (most complex)
+6. **Implementation Priority: API Infrastructure FIRST** ✅
+   - Build API Gateway before any modules
+   - Define module-to-core communication patterns
+   - Create Cosmos SDK integration layer
+   - Then build Identity module (which uses API)
+   - Rationale: Modules cannot function without API bridge
 
-5. **Priority?**
-   - Speed of development (dev-sync first)
-   - Feature completeness (identity module first)
-   - Architecture perfection (all tools first)
+### ⏳ Pending Decisions
+
+None - All technology decisions confirmed!
+
+---
+
+## Priority Decision ✅
+
+**Question**: What's most important for TrustNet development?
+
+**Options**:
+1. **Speed of development** - Build dev-sync.sh first (fast iteration, then features)
+2. **Feature completeness** - Build Identity module first (working feature, prove concept)
+3. **Architecture perfection** - Build all infrastructure first (API + tools + patterns)
+
+**Decision**: **Architecture perfection with security in mind** (Option 3) ✅
+
+**Critical Reality**: **If we have any security issue, the project is dead.**
+
+**Why architecture perfection first**:
+- **Security must be in the foundation** - Can't bolt on security later, must be built from day one
+- **Trust is everything** - TrustNet is about identity and trust; one breach destroys credibility
+- **Modules are useless without API** - Identity module can't talk to blockchain without API Gateway
+- **Prevents rework** - Building Identity first would require rewriting it when API is ready
+- **Shared foundation** - All modules benefit from API client, utilities, security standards
+- **Test once, use many** - Cosmos SDK integration tested once, reused by all modules
+- **Clear contracts** - API spec defines how modules work before we build them
+- **Security patterns** - Authentication, encryption, key management defined upfront
+
+**Security-first approach**:
+- Client-side key generation (Web Crypto API) - keys never touch server
+- AES-256-GCM encryption for all stored keys
+- HTTPS/TLS 1.3 everywhere (no exceptions)
+- JWT authentication with short expiration
+- DID-based identity (self-sovereign, no password reuse)
+- Module permissions system (least privilege)
+- Input validation at API layer (Pydantic models)
+- Rate limiting on all endpoints
+- Audit logging for sensitive operations
+
+**Implementation order**:
+1. **Week 1**: API infrastructure (Cosmos SDK client, API Gateway, shared utilities)
+2. **Week 2**: dev-sync.sh (rapid development workflow)
+3. **Week 3**: Identity module (first module using API)
+4. **Week 4+**: Additional modules (Transactions, Keys, etc.)
+
+**Result**: API-first approach ensures solid foundation for all future modules.
 
 ---
 
 *Document created: February 2, 2026*  
-*Status: Awaiting user decisions on technology choices*  
-*Next: Implement chosen development method*
+*Last updated: February 2, 2026*  
+*Status: All 7 decisions confirmed ✅*  
+*Next: Implement API infrastructure (see API_IMPLEMENTATION_PLAN.md)*

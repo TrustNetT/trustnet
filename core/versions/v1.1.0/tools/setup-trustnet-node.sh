@@ -848,20 +848,20 @@ log_msg ""
 
 # Deploy setup.py
 log_msg "Deploying setup.py to VM..."
-ssh -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" "mkdir -p /opt/trustnet/api /opt/trustnet/web/templates" || {
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" "mkdir -p /opt/trustnet/api /opt/trustnet/web/templates" || {
     log_msg "WARNING: SSH connection failed. Files may not be deployed."
     log_msg "You can manually deploy with:"
     log_msg "  scp -P $VM_SSH_PORT '$API_DIR/setup.py' $VM_USERNAME@$VM_HOSTNAME:/opt/trustnet/api/"
 }
 
-scp -P "$VM_SSH_PORT" "$API_DIR/setup.py" "$VM_USERNAME@$VM_HOSTNAME:/opt/trustnet/api/" 2>/dev/null || \
+scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -P "$VM_SSH_PORT" "$API_DIR/setup.py" "$VM_USERNAME@$VM_HOSTNAME:/opt/trustnet/api/" 2>/dev/null || \
     log_msg "WARNING: Failed to deploy setup.py"
 
 log_msg "✅ setup.py deployed"
 
 # Deploy first-setup.html
 log_msg "Deploying first-setup.html to VM..."
-scp -P "$VM_SSH_PORT" "$WEB_DIR/templates/first-setup.html" "$VM_USERNAME@$VM_HOSTNAME:/opt/trustnet/web/templates/" 2>/dev/null || \
+scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -P "$VM_SSH_PORT" "$WEB_DIR/templates/first-setup.html" "$VM_USERNAME@$VM_HOSTNAME:/opt/trustnet/web/templates/" 2>/dev/null || \
     log_msg "WARNING: Failed to deploy first-setup.html"
 
 log_msg "✅ first-setup.html deployed"
@@ -869,11 +869,11 @@ log_msg "✅ first-setup.html deployed"
 # Deploy requirements.txt
 log_msg "Installing FastAPI on VM..."
 REQ_FILE="$API_DIR/requirements.txt"
-scp -P "$VM_SSH_PORT" "$REQ_FILE" "$VM_USERNAME@$VM_HOSTNAME:/tmp/requirements.txt" 2>/dev/null || \
+scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -P "$VM_SSH_PORT" "$REQ_FILE" "$VM_USERNAME@$VM_HOSTNAME:/tmp/requirements.txt" 2>/dev/null || \
     log_msg "WARNING: Failed to deploy requirements.txt"
 
 # Install dependencies on VM
-ssh -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" << 'SSH_INSTALL_EOF'
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" << 'SSH_INSTALL_EOF'
 #!/bin/bash
 set -e
 
@@ -890,7 +890,7 @@ log_msg "✅ FastAPI installed on VM"
 
 # Create systemd service to run setup.py
 log_msg "Creating systemd service for Setup API..."
-ssh -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" << 'SSH_SERVICE_EOF'
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" << 'SSH_SERVICE_EOF'
 #!/bin/bash
 # Create systemd service for Setup API
 cat > /tmp/trustnet-setup.service << 'SERVICE_UNIT'
@@ -930,11 +930,11 @@ log_msg "✅ Setup API service created and started"
 
 # Deploy Caddy configuration
 log_msg "Updating Caddy configuration..."
-scp -P "$VM_SSH_PORT" "$CADDY_CONFIG" "$VM_USERNAME@$VM_HOSTNAME:/tmp/Caddyfile.setup" 2>/dev/null || \
+scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -P "$VM_SSH_PORT" "$CADDY_CONFIG" "$VM_USERNAME@$VM_HOSTNAME:/tmp/Caddyfile.setup" 2>/dev/null || \
     log_msg "WARNING: Failed to deploy Caddy config"
 
 # Merge Caddy config  
-ssh -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" << 'SSH_CADDY_EOF'
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" << 'SSH_CADDY_EOF'
 #!/bin/bash
 # Merge Caddy setup config if not already imported
 CADDY_FILE="/etc/caddy/Caddyfile"

@@ -43,6 +43,79 @@ sudo dnf install -y qemu-system-x86_64 qemu-img
 sudo pacman -S qemu-system-x86
 ```
 
+For complete setup instructions, see [Installation Guide](docs/deployment/INSTALLATION.md).
+
+---
+
+## 📚 Documentation
+
+> **All documentation is organized in the [docs/](docs/) folder.** Use the links below to find what you need.
+
+### 🚀 Getting Started
+
+- **[Installation Guide](docs/deployment/INSTALLATION.md)** - Step-by-step setup instructions
+- **[Quick Start Testing](docs/getting-started/QUICK_START_TESTING.md)** - Verify your installation
+- **[Testing Guide](docs/getting-started/TESTING_GUIDE.md)** - Run test suite
+
+### 🏗️ Architecture & Design
+
+- **[System Architecture](docs/architecture/ARCHITECTURE.md)** - Overall system design
+- **[Blockchain Architecture](docs/architecture/BLOCKCHAIN_ARCHITECTURE.md)** - Blockchain layer design
+- **[Multi-Chain Architecture](docs/technical/MULTI_CHAIN_ARCHITECTURE.md)** - Multi-chain support design
+- **[Node Network Design](docs/technical/NODE_NETWORK_ARCHITECTURE_PLANNING.md)** - Node topology and networking
+- **[Registry Architecture](docs/technical/REGISTRY_ARCHITECTURE_DECISION.md)** - Service registry design decisions
+
+### 🔐 Security & Operations
+
+- **[Security Architecture](docs/security/SECURITY_ARCHITECTURE.md)** - Threat model and security design
+- **[Security Operations Guide](docs/operations/SECURITY_SKILLS_SETUP_MAINTENANCE.md)** - Security assessment procedures
+  - [Security Skills Quick Start](docs/operations/SECURITY_SKILLS_QUICK_START.md) - How to use security skills
+  - [Integration Guide](docs/operations/SECURITY_SKILLS_INTEGRATION.md) - Architecture of security integration
+- **[Operations Manual](docs/operations/OPERATIONS_MANUAL.md)** - Operational procedures
+- **[Registry Operations](docs/operations/REGISTRY_OPERATIONS_MANUAL.md)** - Registry management and procedures
+- **[Troubleshooting Guide](docs/troubleshooting/TROUBLESHOOTING.md)** - Common issues and solutions
+
+### 📦 Deployment
+
+- **[Deployment Plan](docs/deployment/DEPLOYMENT_PLAN.md)** - Overall deployment strategy
+- **[Installation & Deployment Architecture](docs/deployment/INSTALLATION_AND_DEPLOYMENT_ARCHITECTURE.md)** - Technical deployment details
+- **[Web Setup Guide](docs/deployment/TRUSTNET_LTD_WEB_SETUP.md)** - Web infrastructure configuration
+
+### 🔬 Technical Specifications
+
+- **[API Implementation Plan](docs/technical/API_IMPLEMENTATION_PLAN.md)** - Backend API design
+- **[POC Specification](docs/technical/POC_SPECIFICATION.md)** - Proof of concept requirements
+- **[Module API](docs/technical/MODULE_API_SPECIFICATION.md)** - Module interface specification
+- **[Leadership Selection](docs/technical/TRUST_SYSTEM.md)** - Trust system and validator selection
+- **[Node Registry](docs/technical/NODE_REGISTRY_SERVICE_ARCHITECTURE.md)** - Node discovery and registry
+- **[Solana Integration](docs/technical/SOLANA_PROFILE.md)** - Solana blockchain support
+- **[TrustCoin Economics](docs/technical/TRUSTCOIN_ECONOMICS.md)** - Token economics
+- **[Technology Stack](docs/technical/TECHNOLOGY_STACK_DECISIONS.md)** - Technology choices and rationale
+
+### 📊 Strategy & Planning
+
+- **[Whitepaper](docs/strategy/WHITEPAPER_v4.md)** - Complete project whitepaper
+- **[Project Timeline](docs/strategy/PROJECT_TIMELINE.md)** - Milestones and dates
+- **[Development Roadmap](docs/strategy/PHASED_DEVELOPMENT_ROADMAP.md)** - Phased development plan
+- **[Business Model](docs/strategy/BUSINESS_MODEL.md)** - Revenue and sustainability model
+- **[Funding Strategy](docs/strategy/FUNDING_STRATEGY.md)** - Capitalization and funding plan
+- **[Market Analysis](docs/strategy/MARKET_OPPORTUNITIES.md)** - Market opportunities and analysis
+- **[Cost Analysis](docs/strategy/COST_ANALYSIS.md)** - Budget and burn rate projections
+
+### 📖 References & Indexes
+
+- **[Executive Summary](docs/index/ABSTRACT.md)** - Executive summary
+- **[Project Status](docs/index/PROJECT_STATUS.md)** - Current development status
+- **[Repository Structure Guide](docs/index/REPOSITORY_STRUCTURE.md)** - Codebase organization
+- **[Documentation Index](docs/index/DOCUMENTATION_INDEX.md)** - Complete documentation map
+- **[Web3 Glossary](docs/index/APPENDIX_WEB3_GLOSSARY.md)** - Web3 and blockchain terminology
+
+### 📦 Archive
+
+Historical documentation and session notes are in [docs/archive/](docs/archive/).
+
+---
+
 ## 📁 Project Structure
 
 TrustNet uses a **modular architecture** that separates core infrastructure from features:
