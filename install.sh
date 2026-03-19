@@ -133,29 +133,21 @@ if [ -d "$IDENTITY_BACKUP" ]; then
     log "  Your identity will be restored during installation"
 fi
 
-# Download latest scripts (always get fresh version from core)
-log "→ Downloading latest core scripts for $TRUSTNET_VERSION..."
+# Download latest scripts
+log "→ Downloading latest scripts (v1.1.0)..."
+log "→ Using v1.1.0 with iOS QR integration"
 
-# Determine setup script location based on version
-if [[ "$TRUSTNET_VERSION" == "v1.1.0" ]]; then
-    SETUP_SCRIPT_PATH="core/versions/v1.1.0/tools/setup-trustnet-node.sh"
-    log "→ Using v1.1.0 with iOS QR integration"
-else
-    SETUP_SCRIPT_PATH="core/tools/setup-trustnet-node.sh"
-    log "→ Using v1.0.0 (production stable)"
-fi
-
-# Download setup script from core directory
-if ! curl -fsSL "$RAW_URL/$BRANCH/$SETUP_SCRIPT_PATH?nocache=$(date +%s)" -o setup-trustnet-node.sh.tmp; then
-    log_error "Failed to download setup script from $SETUP_SCRIPT_PATH"
+# Download setup script from tools directory
+if ! curl -fsSL "$RAW_URL/$BRANCH/tools/setup-trustnet-node.sh?nocache=$(date +%s)" -o setup-trustnet-node.sh.tmp; then
+    log_error "Failed to download setup script from tools/setup-trustnet-node.sh"
     exit 1
 fi
 mv setup-trustnet-node.sh.tmp setup-trustnet-node.sh
 chmod +x setup-trustnet-node.sh
 sed -i 's/\r$//' setup-trustnet-node.sh 2>/dev/null || dos2unix setup-trustnet-node.sh 2>/dev/null || true
 
-# Download alpine-install.exp from core
-if ! curl -fsSL "$RAW_URL/$BRANCH/core/tools/alpine-install.exp?nocache=$(date +%s)" -o alpine-install.exp.tmp; then
+# Download alpine-install.exp from tools
+if ! curl -fsSL "$RAW_URL/$BRANCH/tools/alpine-install.exp?nocache=$(date +%s)" -o alpine-install.exp.tmp; then
     log_error "Failed to download alpine-install.exp"
     exit 1
 fi
@@ -163,7 +155,7 @@ mv alpine-install.exp.tmp alpine-install.exp
 sed -i 's/\r$//' alpine-install.exp 2>/dev/null || dos2unix alpine-install.exp 2>/dev/null || true
 
 # Download core modules
-log "→ Downloading core modules for $TRUSTNET_VERSION..."
+log "→ Downloading core modules..."
 mkdir -p lib
 
 # List of core modules to download
@@ -179,7 +171,7 @@ MODULES=(
 )
 
 for module in "${MODULES[@]}"; do
-    if ! curl -fsSL "$RAW_URL/$BRANCH/core/tools/lib/$module?nocache=$(date +%s)" -o "lib/$module.tmp"; then
+    if ! curl -fsSL "$RAW_URL/$BRANCH/tools/lib/$module?nocache=$(date +%s)" -o "lib/$module.tmp"; then
         log_error "Failed to download core module: $module"
         exit 1
     fi
@@ -187,24 +179,22 @@ for module in "${MODULES[@]}"; do
     chmod +x "lib/$module"
 done
 
-# Download version-specific modules if v1.1.0
-if [[ "$TRUSTNET_VERSION" == "v1.1.0" ]]; then
-    log "→ Downloading v1.1.0-specific modules..."
-    
-    V1_1_MODULES=(
-        "ios-integration.sh"
-        "setup-fastapi.sh"
-    )
-    
-    for module in "${V1_1_MODULES[@]}"; do
-        if ! curl -fsSL "$RAW_URL/$BRANCH/core/versions/v1.1.0/tools/lib/$module?nocache=$(date +%s)" -o "lib/$module.tmp" 2>/dev/null; then
-            log "⚠ Optional v1.1.0 module not found: $module (may be embedded in setup script)"
-        else
-            mv "lib/$module.tmp" "lib/$module"
-            chmod +x "lib/$module"
-        fi
-    done
-fi
+# v1.1.0-specific modules (optional, don't fail if missing)
+log "→ Downloading v1.1.0-specific modules..."
+
+V1_1_MODULES=(
+    "ios-integration.sh"
+    "setup-fastapi.sh"
+)
+
+for module in "${V1_1_MODULES[@]}"; do
+    if ! curl -fsSL "$RAW_URL/$BRANCH/tools/lib/$module?nocache=$(date +%s)" -o "lib/$module.tmp" 2>/dev/null; then
+        log "⚠ Optional v1.1.0 module not found: $module (may be embedded in setup script)"
+    else
+        mv "lib/$module.tmp" "lib/$module"
+        chmod +x "lib/$module"
+    fi
+done
 
 log "✓ Core scripts and modules downloaded"
 
