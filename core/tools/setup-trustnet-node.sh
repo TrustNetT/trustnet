@@ -103,7 +103,31 @@ VM_SSH_PORT="2223"
 
 VM_HOSTNAME="trustnet.local"
 VM_USERNAME="warden"
+SSH_KEY_NAME="trustnet-warden"
 VM_PASSWORD="$(openssl rand -base64 12)"  # Random password for console access
+
+# Disk configuration
+SYSTEM_DISK_SIZE="20G"
+CACHE_DISK_SIZE="5G"
+DATA_DISK_SIZE="30G"
+SYSTEM_DISK="${VM_DIR}/${VM_NAME}.qcow2"
+CACHE_DISK="${VM_DIR}/${VM_NAME}-cache.qcow2"
+DATA_DISK="${VM_DIR}/${VM_NAME}-data.qcow2"
+
+# Alpine configuration (will be auto-detected to latest stable)
+ALPINE_VERSION=""  # Auto-detect latest
+# ALPINE_ARCH set from command-line args (defaults to x86_64)
+
+# SSH key configuration
+SSH_KEY_PATH="${HOME}/.ssh/${SSH_KEY_NAME}"
+SSH_PRIV_KEY="${SSH_KEY_PATH}"
+SSH_PUB_KEY="${SSH_KEY_PATH}.pub"
+
+# Export variables for modules
+export SCRIPT_DIR PROJECT_ROOT VM_DIR VM_NAME VM_MEMORY VM_CPUS VM_SSH_PORT
+export VM_HOSTNAME VM_USERNAME SSH_KEY_NAME SSH_KEY_PATH SSH_PRIV_KEY SSH_PUB_KEY
+export SYSTEM_DISK_SIZE CACHE_DISK_SIZE DATA_DISK_SIZE SYSTEM_DISK CACHE_DISK DATA_DISK
+export ALPINE_VERSION ALPINE_ARCH CACHE_DIR LOG_FILE
 
 log_msg ""
 log_msg "Configuration:"
