@@ -352,34 +352,68 @@ log_msg "✅ Installation script created"
 ################################################################################
 
 log_msg ""
-log_msg "Deploying v1.1.0 components to VM..."
+log_msg "Step 3/3: Deploying iOS v1.1.0 components to VM via SCP..."
 log_msg ""
 
-# Deploy setup.py
-log_msg "Deploying setup.py to VM..."
+# Create directories on VM
 ssh -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" "mkdir -p /opt/trustnet/api /opt/trustnet/web/templates" || {
-    log_msg "WARNING: SSH connection failed. Files may not be deployed."
-    log_msg "You can manually deploy with:"
-    log_msg "  scp -P $VM_SSH_PORT '$API_DIR/setup.py' $VM_USERNAME@$VM_HOSTNAME:/opt/trustnet/api/"
+    log_msg "WARNING: Failed to create directories on VM"
 }
 
-scp -P "$VM_SSH_PORT" "$API_DIR/setup.py" "$VM_USERNAME@$VM_HOSTNAME:/opt/trustnet/api/" 2>/dev/null || \
-    log_msg "WARNING: Failed to deploy setup.py"
+# Source paths - use hardcoded paths from public repo (same check as earlier)
+if [ -d "/home/jcgarcia/GitProjects/TrustNet/TrustNet/core/versions/v1.1.0" ]; then
+    SETUP_API_HOST="/home/jcgarcia/GitProjects/TrustNet/TrustNet/core/versions/v1.1.0/api/setup_api.py"
+    FIRST_SETUP_HTML="/home/jcgarcia/GitProjects/TrustNet/TrustNet/core/versions/v1.1.0/web/templates/first-setup.html"
+    REQ_FILE="/home/jcgarcia/GitProjects/TrustNet/TrustNet/core/versions/v1.1.0/setup-requirements.txt"
+elif [ -d "/home/jcgarcia/wip/pub/TrustNet/core/versions/v1.1.0" ]; then
+    SETUP_API_HOST="/home/jcgarcia/wip/pub/TrustNet/core/versions/v1.1.0/api/setup_api.py"
+    FIRST_SETUP_HTML="/home/jcgarcia/wip/pub/TrustNet/core/versions/v1.1.0/web/templates/first-setup.html"
+    REQ_FILE="/home/jcgarcia/wip/pub/TrustNet/core/versions/v1.1.0/setup-requirements.txt"
+else
+    log_msg "WARNING: v1.1.0 files not found in standard locations"
+    SETUP_API_HOST=""
+    FIRST_SETUP_HTML=""
+    REQ_FILE=""
+fi
 
-log_msg "✅ setup.py deployed"
+# Deploy setup_api.py
+if [ -f "$SETUP_API_HOST" ]; then
+    log_msg "SCP: setup_api.py → /opt/trustnet/api/setup.py"
+    scp -P "$VM_SSH_PORT" "$SETUP_API_HOST" "$VM_USERNAME@$VM_HOSTNAME:/opt/trustnet/api/setup.py" 2>/dev/null
+    if [ $? -eq 0 ]; then
+        log_msg "✅ setup_api.py deployed (full QR code generation with PIN verification)"
+    else
+        log_msg "WARNING: SCP failed for setup_api.py"
+    fi
+else
+    log_msg "WARNING: setup_api.py not found at $SETUP_API_HOST"
+fi
 
 # Deploy first-setup.html
-log_msg "Deploying first-setup.html to VM..."
-scp -P "$VM_SSH_PORT" "$WEB_DIR/templates/first-setup.html" "$VM_USERNAME@$VM_HOSTNAME:/opt/trustnet/web/templates/" 2>/dev/null || \
-    log_msg "WARNING: Failed to deploy first-setup.html"
-
-log_msg "✅ first-setup.html deployed"
+if [ -f "$FIRST_SETUP_HTML" ]; then
+    log_msg "SCP: first-setup.html → /opt/trustnet/web/templates/first-setup.html"
+    scp -P "$VM_SSH_PORT" "$FIRST_SETUP_HTML" "$VM_USERNAME@$VM_HOSTNAME:/opt/trustnet/web/templates/first-setup.html" 2>/dev/null
+    if [ $? -eq 0 ]; then
+        log_msg "✅ first-setup.html deployed (responsive iOS setup UI)"
+    else
+        log_msg "WARNING: SCP failed for first-setup.html"
+    fi
+else
+    log_msg "WARNING: first-setup.html not found at $FIRST_SETUP_HTML"
+fi
 
 # Deploy requirements.txt
 log_msg "Installing FastAPI on VM..."
-REQ_FILE="$API_DIR/requirements.txt"
-scp -P "$VM_SSH_PORT" "$REQ_FILE" "$VM_USERNAME@$VM_HOSTNAME:/tmp/requirements.txt" 2>/dev/null || \
-    log_msg "WARNING: Failed to deploy requirements.txt"
+if [ -f "$REQ_FILE" ]; then
+    scp -P "$VM_SSH_PORT" "$REQ_FILE" "$VM_USERNAME@$VM_HOSTNAME:/tmp/requirements.txt" 2>/dev/null
+    if [ $? -eq 0 ]; then
+        log_msg "✅ requirements.txt deployed"
+    else
+        log_msg "WARNING: Failed to deploy requirements.txt"
+    fi
+else
+    log_msg "WARNING: requirements.txt not found at $REQ_FILE"
+fi
 
 # Install dependencies on VM
 ssh -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" << 'SSH_INSTALL_EOF'
