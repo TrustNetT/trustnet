@@ -159,12 +159,19 @@ log_msg ""
 
 mkdir -p "$VM_DIR" "$CACHE_DIR"
 
-# Source v1.0.0 setup functions (if available)
-if [ -f "$PROJECT_ROOT/core/versions/v1.0.0/tools/lib/install-caddy.sh" ]; then
-    log_msg "Using v1.0.0 base installation scripts"
-    # Base setup logic would go here (inherited from v1.0.0)
+# Create and boot the VM using sourced lifecycle functions
+if type -t ensure_qemu &> /dev/null; then
+    log_msg "Creating and configuring Alpine VM..."
+    ensure_qemu || { log_msg "ERROR: Failed to install QEMU"; exit 1; }
+    check_dependencies || { log_msg "ERROR: Missing dependencies"; exit 1; }
+    setup_ssh_keys || { log_msg "ERROR: Failed to setup SSH keys"; exit 1; }
+    download_alpine || { log_msg "ERROR: Failed to download Alpine"; exit 1; }
+    create_disks || { log_msg "ERROR: Failed to create VM disks"; exit 1; }
+    start_vm_for_install || { log_msg "ERROR: Failed to start VM"; exit 1; }
+    log_msg "✓ Base v1.0.0 node infrastructure ready"
 else
-    log_msg "Note: Using fallback base installation. Recommend running v1.0.0 setup first."
+    log_msg "ERROR: VM lifecycle functions not available (check lib modules)"
+    exit 1
 fi
 
 ################################################################################
