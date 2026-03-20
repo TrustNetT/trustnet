@@ -249,10 +249,6 @@ else
     log_msg "WARNING: first-setup.html not found at $FIRST_SETUP_HTML"
     log_msg "Path checked: $FIRST_SETUP_HTML"
 fi
-</body>
-</html>
-HTML_FALLBACK
-fi
 
 ################################################################################
 # Step 6: Create Caddy Configuration for Setup UI
