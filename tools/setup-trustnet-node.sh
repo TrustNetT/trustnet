@@ -25,7 +25,7 @@
 
 set -euo pipefail
 
-# Logging configuration (persistent internal state)
+# Logging configuration
 LOG_DIR="${HOME}/.trustnet/logs"
 if [ -n "${TRUSTNET_LOG_FILE:-}" ]; then
     LOG_FILE="$TRUSTNET_LOG_FILE"
@@ -77,19 +77,6 @@ done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 
-################################################################################
-# Source Library Modules
-################################################################################
-
-# Source common functions and bootstrap modules
-for module in common.sh vm-lifecycle.sh vm-bootstrap.sh cache-manager.sh install-caddy.sh install-cosmos-sdk.sh install-certificates.sh setup-motd.sh; do
-    if [ -f "$SCRIPT_DIR/lib/$module" ]; then
-        source "$SCRIPT_DIR/lib/$module" || {
-            log_msg "WARNING: Failed to source library module: $module"
-        }
-    fi
-done
-
 # Detect v1.1.0 directory
 if [ -d "$SCRIPT_DIR/../v1.1.0" ]; then
     VERSION_DIR="$SCRIPT_DIR/../v1.1.0"
@@ -109,6 +96,12 @@ VM_SSH_PORT="2223"
 VM_HOSTNAME="trustnet.local"
 VM_USERNAME="warden"
 VM_PASSWORD="$(openssl rand -base64 12)"  # Random password for console access
+
+# Disk file paths (required by vm-lifecycle.sh)
+SYSTEM_DISK="${VM_DIR}/trustnet.qcow2"
+CACHE_DISK="${VM_DIR}/trustnet-cache.qcow2"
+DATA_DISK="${VM_DIR}/trustnet-data.qcow2"
+SYSTEM_DISK_SIZE="50G"
 
 log_msg ""
 log_msg "Configuration:"
@@ -157,40 +150,14 @@ elif [ "$FRESH_MODE" = true ]; then
 fi
 
 ################################################################################
-# VM Creation & Bootstrap (required before all steps)
-################################################################################
-
-log_msg ""
-log_msg "Initializing TrustNet VM..."
-log_msg ""
-
-mkdir -p "$VM_DIR" "$CACHE_DIR"
-
-# Call lifecycle functions to create and boot the VM
-if type -t ensure_qemu &> /dev/null; then
-    ensure_qemu
-    check_dependencies
-    setup_ssh_keys
-    download_alpine
-    create_disks
-    start_vm_for_install
-    if [ $? -ne 0 ]; then
-        log_msg "ERROR: VM initialization failed"
-        exit 1
-    fi
-    log_msg "✓ VM created and booted successfully"
-else
-    log_msg "ERROR: VM lifecycle functions not available (modules not properly sourced)"
-    exit 1
-fi
-
-################################################################################
 # Step 2: Base Node Setup (v1.0.0)
 ################################################################################
 
 log_msg ""
 log_msg "Step 1/3: Setting up base v1.0.0 node infrastructure..."
 log_msg ""
+
+mkdir -p "$VM_DIR" "$CACHE_DIR"
 
 # Source v1.0.0 setup functions (if available)
 if [ -f "$PROJECT_ROOT/core/versions/v1.0.0/tools/lib/install-caddy.sh" ]; then
@@ -252,22 +219,12 @@ ssh -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" "mkdir -p /opt/trustnet/api /o
 }
 
 # Source paths (from public repo on host)
-# Use symlink path in ~/GitProjects (standard workspace location)
-if [ -d "/home/jcgarcia/GitProjects/TrustNet/TrustNet/core/versions/v1.1.0" ]; then
-    SETUP_API_HOST="/home/jcgarcia/GitProjects/TrustNet/TrustNet/core/versions/v1.1.0/api/setup_api.py"
-    FIRST_SETUP_HTML="/home/jcgarcia/GitProjects/TrustNet/TrustNet/core/versions/v1.1.0/web/templates/first-setup.html"
-elif [ -d "/home/jcgarcia/wip/pub/TrustNet/core/versions/v1.1.0" ]; then
-    SETUP_API_HOST="/home/jcgarcia/wip/pub/TrustNet/core/versions/v1.1.0/api/setup_api.py"
-    FIRST_SETUP_HTML="/home/jcgarcia/wip/pub/TrustNet/core/versions/v1.1.0/web/templates/first-setup.html"
-else
-    SETUP_API_HOST="$PROJECT_ROOT/../core/versions/v1.1.0/api/setup_api.py"
-    FIRST_SETUP_HTML="$PROJECT_ROOT/../core/versions/v1.1.0/web/templates/first-setup.html"
-fi
+SETUP_API_HOST="$PROJECT_ROOT/../core/versions/v1.1.0/api/setup_api.py"
+FIRST_SETUP_HTML="$PROJECT_ROOT/../core/versions/v1.1.0/web/templates/first-setup.html"
 
 # SCP setup_api.py to VM
 if [ -f "$SETUP_API_HOST" ]; then
     log_msg "Copying setup_api.py to VM via SCP..."
-    log_msg "Source: $SETUP_API_HOST"
     scp -P "$VM_SSH_PORT" "$SETUP_API_HOST" "$VM_USERNAME@$VM_HOSTNAME:/opt/trustnet/api/setup.py" 2>/dev/null
     if [ $? -eq 0 ]; then
         log_msg "✅ setup_api.py deployed (full QR code generation with PIN verification)"
@@ -275,14 +232,13 @@ if [ -f "$SETUP_API_HOST" ]; then
         log_msg "WARNING: SCP failed for setup_api.py"
     fi
 else
-    log_msg "WARNING: setup_api.py not found"
-    log_msg "Checked: $SETUP_API_HOST"
+    log_msg "WARNING: setup_api.py not found at $SETUP_API_HOST"
+    log_msg "Path checked: $SETUP_API_HOST"
 fi
 
 # SCP first-setup.html to VM
 if [ -f "$FIRST_SETUP_HTML" ]; then
     log_msg "Copying first-setup.html to VM via SCP..."
-    log_msg "Source: $FIRST_SETUP_HTML"
     scp -P "$VM_SSH_PORT" "$FIRST_SETUP_HTML" "$VM_USERNAME@$VM_HOSTNAME:/opt/trustnet/web/templates/first-setup.html" 2>/dev/null
     if [ $? -eq 0 ]; then
         log_msg "✅ first-setup.html deployed (responsive iOS setup UI)"
@@ -290,8 +246,8 @@ if [ -f "$FIRST_SETUP_HTML" ]; then
         log_msg "WARNING: SCP failed for first-setup.html"
     fi
 else
-    log_msg "WARNING: first-setup.html not found"
-    log_msg "Checked: $FIRST_SETUP_HTML"
+    log_msg "WARNING: first-setup.html not found at $FIRST_SETUP_HTML"
+    log_msg "Path checked: $FIRST_SETUP_HTML"
 fi
 </body>
 </html>
@@ -391,65 +347,34 @@ log_msg "✅ Installation script created"
 ################################################################################
 
 log_msg ""
-log_msg "Step 3/3: Deploying iOS v1.1.0 components to VM via SCP..."
+log_msg "Deploying v1.1.0 components to VM..."
 log_msg ""
 
-# Create directories on VM
+# Deploy setup.py
+log_msg "Deploying setup.py to VM..."
 ssh -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" "mkdir -p /opt/trustnet/api /opt/trustnet/web/templates" || {
-    log_msg "WARNING: Failed to create directories on VM"
+    log_msg "WARNING: SSH connection failed. Files may not be deployed."
+    log_msg "You can manually deploy with:"
+    log_msg "  scp -P $VM_SSH_PORT '$API_DIR/setup.py' $VM_USERNAME@$VM_HOSTNAME:/opt/trustnet/api/"
 }
 
-# Download iOS v1.1.0 files from GitHub public repo
-# These are fetched fresh during installation so paths don't depend on host filesystem
-API_DOWNLOAD="https://raw.githubusercontent.com/TrustNetT/trustnet/main/core/versions/v1.1.0/api/setup_api.py"
-HTML_DOWNLOAD="https://raw.githubusercontent.com/TrustNetT/trustnet/main/core/versions/v1.1.0/web/templates/first-setup.html"
-REQ_DOWNLOAD="https://raw.githubusercontent.com/TrustNetT/trustnet/main/core/versions/v1.1.0/setup-requirements.txt"
+scp -P "$VM_SSH_PORT" "$API_DIR/setup.py" "$VM_USERNAME@$VM_HOSTNAME:/opt/trustnet/api/" 2>/dev/null || \
+    log_msg "WARNING: Failed to deploy setup.py"
 
-# Download to temp locations on host
-TEMP_API="/tmp/setup_api_$$.py"
-TEMP_HTML="/tmp/first_setup_$$.html"
-TEMP_REQ="/tmp/requirements_$$.txt"
+log_msg "✅ setup.py deployed"
 
-log_msg "Downloading iOS v1.1.0 files from GitHub..."
+# Deploy first-setup.html
+log_msg "Deploying first-setup.html to VM..."
+scp -P "$VM_SSH_PORT" "$WEB_DIR/templates/first-setup.html" "$VM_USERNAME@$VM_HOSTNAME:/opt/trustnet/web/templates/" 2>/dev/null || \
+    log_msg "WARNING: Failed to deploy first-setup.html"
 
-if curl -fsSL "$API_DOWNLOAD" -o "$TEMP_API" 2>/dev/null && [ -f "$TEMP_API" ]; then
-    log_msg "SCP: setup_api.py → /opt/trustnet/api/setup.py"
-    scp -P "$VM_SSH_PORT" "$TEMP_API" "$VM_USERNAME@$VM_HOSTNAME:/opt/trustnet/api/setup.py" 2>/dev/null
-    if [ $? -eq 0 ]; then
-        log_msg "✅ setup_api.py deployed (full QR code generation with PIN verification)"
-    else
-        log_msg "WARNING: SCP failed for setup_api.py"
-    fi
-    rm -f "$TEMP_API"
-else
-    log_msg "WARNING: Failed to download setup_api.py from GitHub"
-fi
+log_msg "✅ first-setup.html deployed"
 
-if curl -fsSL "$HTML_DOWNLOAD" -o "$TEMP_HTML" 2>/dev/null && [ -f "$TEMP_HTML" ]; then
-    log_msg "SCP: first-setup.html → /opt/trustnet/web/templates/first-setup.html"
-    scp -P "$VM_SSH_PORT" "$TEMP_HTML" "$VM_USERNAME@$VM_HOSTNAME:/opt/trustnet/web/templates/first-setup.html" 2>/dev/null
-    if [ $? -eq 0 ]; then
-        log_msg "✅ first-setup.html deployed (responsive iOS setup UI)"
-    else
-        log_msg "WARNING: SCP failed for first-setup.html"
-    fi
-    rm -f "$TEMP_HTML"
-else
-    log_msg "WARNING: Failed to download first-setup.html from GitHub"
-fi
-
-if curl -fsSL "$REQ_DOWNLOAD" -o "$TEMP_REQ" 2>/dev/null && [ -f "$TEMP_REQ" ]; then
-    log_msg "SCP: setup-requirements.txt → /tmp/requirements.txt"
-    scp -P "$VM_SSH_PORT" "$TEMP_REQ" "$VM_USERNAME@$VM_HOSTNAME:/tmp/requirements.txt" 2>/dev/null
-    if [ $? -eq 0 ]; then
-        log_msg "✅ requirements.txt deployed"
-    else
-        log_msg "WARNING: SCP failed for requirements.txt"
-    fi
-    rm -f "$TEMP_REQ"
-else
-    log_msg "WARNING: Failed to download requirements.txt from GitHub"
-fi
+# Deploy requirements.txt
+log_msg "Installing FastAPI on VM..."
+REQ_FILE="$API_DIR/requirements.txt"
+scp -P "$VM_SSH_PORT" "$REQ_FILE" "$VM_USERNAME@$VM_HOSTNAME:/tmp/requirements.txt" 2>/dev/null || \
+    log_msg "WARNING: Failed to deploy requirements.txt"
 
 # Install dependencies on VM
 ssh -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" << 'SSH_INSTALL_EOF'
