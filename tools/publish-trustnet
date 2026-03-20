@@ -161,6 +161,14 @@ copy_files() {
         fi
     fi
     
+    # Core versions (v1.0.0, v1.1.0, etc.) - deployment artifacts
+    if [[ -d "$WORKING_REPO/core/versions" ]]; then
+        mkdir -p "$PUBLIC_REPO/core"
+        rm -rf "$PUBLIC_REPO/core/versions"  # Clean before copy
+        cp -r "$WORKING_REPO/core/versions" "$PUBLIC_REPO/core/"
+        log_info "Copied: core/versions (all deployment versions)"
+    fi
+    
     # Public docs only (exclude internal work docs)
     if [[ -d "$WORKING_REPO/docs" ]]; then
         mkdir -p "$PUBLIC_REPO/docs"

@@ -20,9 +20,3 @@ Thumbs.db
 node_modules/
 dist/
 .env*
-# Terraform
-**/.terraform/
-**/.terraform.lock.hcl
-terraform.tfstate*
-*.tfstate*
-.terraform.tfvars
