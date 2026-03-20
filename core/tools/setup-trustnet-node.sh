@@ -998,17 +998,28 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p "$VM_SSH_PORT
 #!/bin/bash
 
 if command -v apk &> /dev/null; then
-    # Alpine Linux
-    doas apk add --no-cache python3 python3-dev py3-pip libjpeg zlib-dev gcc musl-dev
-    doas python3 -m pip install --no-cache-dir --no-deps -r /tmp/requirements.txt
+    # Alpine Linux - use virtual environment to bypass PEP 668
+    doas apk add --no-cache python3 python3-dev py3-pip py3-venv libjpeg zlib-dev gcc musl-dev
+    
+    # Create virtual environment for setup API
+    doas python3 -m venv /opt/trustnet/venv
+    doas /opt/trustnet/venv/bin/pip install --no-cache-dir --upgrade pip setuptools wheel
+    doas /opt/trustnet/venv/bin/pip install --no-cache-dir -r /tmp/requirements.txt
+    doas chown -R root:root /opt/trustnet/venv
+    
 elif command -v apt &> /dev/null; then
     # Debian/Ubuntu
     sudo apt-get update || true
-    sudo apt-get install -y python3-pip python3-dev libjpeg-dev zlib1g-dev
-    sudo python3 -m pip install --no-cache-dir -r /tmp/requirements.txt
+    sudo apt-get install -y python3-pip python3-dev python3-venv libjpeg-dev zlib1g-dev
+    
+    # Create virtual environment for setup API
+    sudo python3 -m venv /opt/trustnet/venv
+    sudo /opt/trustnet/venv/bin/pip install --no-cache-dir --upgrade pip setuptools wheel
+    sudo /opt/trustnet/venv/bin/pip install --no-cache-dir -r /tmp/requirements.txt
+    sudo chown -R root:root /opt/trustnet/venv
 fi
 SSH_INSTALL_EOF
-log_msg "✅ FastAPI installed on VM"
+log_msg "✅ FastAPI installed on VM (in virtual environment)"
 
 # Create systemd service to run setup.py
 log_msg "Creating systemd service for Setup API..."
@@ -1021,15 +1032,18 @@ cat > /tmp/trustnet-setup << 'SERVICE_UNIT'
 name="TrustNet v1.1.0 Setup API"
 description="FastAPI service for iOS QR code and PIN verification"
 
-command="/usr/bin/python3"
-command_args="/opt/trustnet/api/setup.py"
-command_user="warden:warden"
+command="/opt/trustnet/venv/bin/uvicorn"
+command_args="setup:app --host 0.0.0.0 --port 8001 --reload"
+command_user="root:root"
 command_background="yes"
 pidfile="/run/trustnet-setup.pid"
+directory="/opt/trustnet/api"
 
 # Ensure working directory exists
 start_pre() {
-    checkpath --directory --owner warden:warden --mode 0755 /opt/trustnet/api
+    checkpath --directory --owner root:root --mode 0755 /opt/trustnet/api
+    # Start in the correct directory for setup.py module to be found
+    cd /opt/trustnet/api
 }
 
 # Service dependencies
@@ -1053,7 +1067,7 @@ elif command -v sudo &> /dev/null; then
 fi
 SSH_SERVICE_EOF
 
-log_msg "✅ Setup API service created and started (OpenRC)"
+log_msg "✅ Setup API service created and started (OpenRC, using venv)"
 
 # Deploy Caddy configuration
 log_msg "Updating Caddy configuration..."
