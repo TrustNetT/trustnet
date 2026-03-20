@@ -150,6 +150,40 @@ elif [ "$FRESH_MODE" = true ]; then
 fi
 
 ################################################################################
+# Source Library Modules (CRITICAL)
+################################################################################
+
+log_msg "Loading library modules..."
+
+MODULES=(
+    "common.sh"
+    "vm-lifecycle.sh"
+    "vm-bootstrap.sh"
+    "cache-manager.sh"
+    "install-caddy.sh"
+    "install-cosmos-sdk.sh"
+    "install-certificates.sh"
+    "setup-motd.sh"
+)
+
+for module in "${MODULES[@]}"; do
+    module_path="$SCRIPT_DIR/lib/$module"
+    if [ -f "$module_path" ]; then
+        source "$module_path" || {
+            log_msg "ERROR: Failed to source module: $module"
+            exit 1
+        }
+        log_msg "  ✓ Loaded: $module"
+    else
+        log_msg "ERROR: Required module not found: $module_path"
+        exit 1
+    fi
+done
+
+log_msg "All modules loaded successfully."
+log_msg ""
+
+################################################################################
 # Step 1: Verify and Initialize VM (ALL-IN-ONE INSTALLER)
 ################################################################################
 
