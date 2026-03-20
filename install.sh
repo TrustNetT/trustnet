@@ -221,6 +221,9 @@ fi
 if [[ "$UPGRADE_MODE" == "true" ]]; then
     SETUP_ARGS="$SETUP_ARGS --upgrade"
 fi
+if [[ "$FRESH_MODE" == "true" ]]; then
+    SETUP_ARGS="$SETUP_ARGS --fresh"
+fi
 
 # Run the versioned setup script with parsed arguments
 exec ./setup-trustnet-node.sh --arch=$ARCH $SETUP_ARGS
