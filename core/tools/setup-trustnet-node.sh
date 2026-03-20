@@ -74,7 +74,14 @@ done
 # Configuration
 ################################################################################
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Handle both direct execution and pipe scenarios
+if [ -n "${BASH_SOURCE[0]:-}" ]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+else
+    # Piped execution (curl | bash): use current directory
+    SCRIPT_DIR="$(pwd)"
+fi
+
 PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 
 # Detect v1.1.0 directory
