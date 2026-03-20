@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TrustNet Node Setup</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 500px;
+            width: 100%;
+            padding: 40px;
+            animation: slideUp 0.5s ease-out;
+        }
+        
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .logo {
+            font-size: 36px;
+            margin-bottom: 10px;
+        }
+        
+        h1 {
+            color: #333;
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            color: #666;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        
+        .status {
+            background: #f5f5f5;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+            font-size: 14px;
+            color: #555;
+        }
+        
+        .status.loading {
+            border-left-color: #ffa500;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            border-left-color: #28a745;
+            color: #155724;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            border-left-color: #dc3545;
+            color: #721c24;
+        }
+        
+        .qr-section {
+            text-align: center;
+            margin: 30px 0;
+        }
+        
+        .qr-label {
+            color: #666;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 15px;
+            display: block;
+        }
+        
+        #qr-code {
+            display: inline-block;
+            padding: 15px;
+            background: white;
+            border: 2px solid #667eea;
+            border-radius: 8px;
+            margin: 20px 0;
+            max-width: 100%;
+            height: auto;
+        }
+        
+        .qr-loading {
+            display: inline-block;
+            width: 250px;
+            height: 250px;
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: loading 1.5s infinite;
+            border-radius: 8px;
+        }
+        
+        @keyframes loading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+        
+        .pin-section {
+            background: #f9f9f9;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 25px 0;
+            text-align: center;
+        }
+        
+        .pin-label {
+            color: #999;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+            display: block;
+        }
+        
+        .pin-code {
+            font-size: 32px;
+            font-weight: bold;
+            font-family: 'Courier New', monospace;
+            color: #667eea;
+            letter-spacing: 8px;
+            user-select: all;
+            cursor: pointer;
+            padding: 10px;
+            background: white;
+            border-radius: 4px;
+            border: 2px dashed #ddd;
+        }
+        
+        .pin-code:hover {
+            border-color: #667eea;
+        }
+        
+        .pin-note {
+            color: #999;
+            font-size: 12px;
+            margin-top: 10px;
+        }
+        
+        .instructions {
+            background: #fff5e6;
+            border-left: 4px solid #ffa500;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        
+        .instructions h3 {
+            color: #ff8c00;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        
+        .instructions ol {
+            margin-left: 20px;
+        }
+        
+        .instructions li {
+            margin: 5px 0;
+        }
+        
+        .timer {
+            color: #dc3545;
+            font-weight: bold;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+        
+        .timer.warning {
+            animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            color: #999;
+            font-size: 12px;
+        }
+        
+        .footer a {
+            color: #667eea;
+            text-decoration: none;
+        }
+        
+        .footer a:hover {
+            text-decoration: underline;
+        }
+        
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .copy-button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-top: 10px;
+            transition: background 0.2s;
+        }
+        
+        .copy-button:hover {
+            background: #764ba2;
+        }
+        
+        .copy-button:active {
+            transform: scale(0.98);
+        }
+        
+        .refresh-button {
+            background: transparent;
+            color: #667eea;
+            border: 1px solid #667eea;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-top: 10px;
+            transition: all 0.2s;
+        }
+        
+        .refresh-button:hover {
+            background: #667eea;
+            color: white;
+        }
+        
+        @media (max-width: 480px) {
+            .container {
+                padding: 25px;
+            }
+            
+            h1 {
+                font-size: 20px;
+            }
+            
+            .pin-code {
+                font-size: 24px;
+                letter-spacing: 4px;
+            }
+            
+            #qr-code {
+                max-width: 200px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">🔐</div>
+            <h1>Connect to TrustNet</h1>
+            <p class="subtitle">Use your iPhone or iPad to scan the QR code below</p>
+        </div>
+        
+        <div class="status" id="status">
+            <span class="spinner"></span> Loading QR code...
+        </div>
+        
+        <div class="qr-section">
+            <span class="qr-label">Step 1: Scan QR Code</span>
+            <div id="qr-container">
+                <div class="qr-loading"></div>
+            </div>
+            <button class="refresh-button" onclick="refreshQRCode()">Refresh QR Code</button>
+        </div>
+        
+        <div class="pin-section">
+            <span class="pin-label">Step 2: Confirm PIN</span>
+            <div class="pin-code" id="pin-code" title="Click to copy">------</div>
+            <button class="copy-button" onclick="copyPIN()">Copy PIN</button>
+            <div class="timer" id="timer"></div>
+            <p class="pin-note">This PIN expires in <span id="lifetime">30</span> minutes</p>
+        </div>
+        
+        <div class="instructions">
+            <h3>How to set up:</h3>
+            <ol>
+                <li>Open the <strong>TrustNet</strong> app on your iPhone</li>
+                <li>Tap <strong>"Add Node"</strong> or <strong>"Scan"</strong></li>
+                <li>Point your camera at the QR code above</li>
+                <li>Confirm the PIN: <code id="pin-display">------</code></li>
+                <li>Your node is now connected!</li>
+            </ol>
+        </div>
+        
+        <div class="footer">
+            <p>TrustNet v1.1.0 • iOS Setup • <a href="/api/health">API Status</a></p>
+        </div>
+    </div>
+    
+    <script>
+        const QR_REFRESH_INTERVAL = 30 * 60 * 1000; // 30 minutes
+        let qrRefreshTimer = null;
+        let expiryCheckTimer = null;
+        let currentExpiresAt = null;
+        
+        async function loadQRCode() {
+            try {
+                const response = await fetch('/api/setup/qr-code');
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                
+                const data = await response.json();
+                
+                // Update QR code
+                if (data.qr_image_base64) {
+                    document.getElementById('qr-container').innerHTML = 
+                        `<img id="qr-code" src="data:image/png;base64,${data.qr_image_base64}" alt="QR Code">`;
+                }
+                
+                // Update PIN
+                if (data.pin_code) {
+                    const pinWithSpaces = data.pin_code.split('').join(' ');
+                    document.getElementById('pin-code').textContent = pinWithSpaces;
+                    document.getElementById('pin-display').textContent = data.pin_code;
+                }
+                
+                // Update expiry
+                currentExpiresAt = new Date(data.expires_at * 1000);
+                
+                // Update status
+                updateStatus('success', '✓ QR Code loaded. Ready for scanning.');
+                
+                // Schedule next refresh
+                clearTimeout(qrRefreshTimer);
+                qrRefreshTimer = setTimeout(loadQRCode, QR_REFRESH_INTERVAL);
+                
+                // Start countdown timer
+                startExpiryCountdown();
+                
+            } catch (error) {
+                console.error('Error loading QR code:', error);
+                updateStatus('error', '❌ Failed to load QR code. Check your connection.');
+                document.getElementById('qr-container').innerHTML = '<p style="color: red;">Failed to load</p>';
+            }
+        }
+        
+        function startExpiryCountdown() {
+            clearInterval(expiryCheckTimer);
+            
+            function updateCountdown() {
+                if (!currentExpiresAt) return;
+                
+                const now = new Date();
+                const diff = currentExpiresAt - now;
+                const minutes = Math.floor(diff / 60000);
+                const seconds = Math.floor((diff % 60000) / 1000);
+                
+                const timerEl = document.getElementById('timer');
+                if (minutes >= 0) {
+                    timerEl.textContent = `Expires in ${minutes}m ${seconds}s`;
+                    if (minutes <= 5) {
+                        timerEl.classList.add('warning');
+                    } else {
+                        timerEl.classList.remove('warning');
+                    }
+                } else {
+                    timerEl.textContent = 'QR Code expired - refresh above';
+                    updateStatus('error', '⚠️ QR Code has expired. Generate a new one.');
+                }
+            }
+            
+            updateCountdown();
+            expiryCheckTimer = setInterval(updateCountdown, 1000);
+        }
+        
+        function updateStatus(type, message) {
+            const statusEl = document.getElementById('status');
+            statusEl.className = 'status ' + type;
+            statusEl.textContent = message;
+        }
+        
+        function refreshQRCode() {
+            document.getElementById('qr-container').innerHTML = '<div class="qr-loading"></div>';
+            updateStatus('loading', '<span class="spinner"></span> Generating new QR code...');
+            loadQRCode();
+        }
+        
+        function copyPIN() {
+            const pin = document.getElementById('pin-display').textContent;
+            if (pin === '------') {
+                alert('PIN not loaded yet');
+                return;
+            }
+            
+            navigator.clipboard.writeText(pin).then(() => {
+                alert('PIN copied to clipboard!');
+            }).catch(() => {
+                alert('Copy failed. PIN: ' + pin);
+            });
+        }
+        
+        // Load QR code on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadQRCode();
+        });
+        
+        // Reload QR code before page unload is prevented (for long sessions)
+        window.addEventListener('beforeunload', () => {
+            clearTimeout(qrRefreshTimer);
+            clearInterval(expiryCheckTimer);
+        });
+    </script>
+</body>
+</html>
