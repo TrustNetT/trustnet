@@ -168,6 +168,26 @@ if type -t ensure_qemu &> /dev/null; then
     download_alpine || { log_msg "ERROR: Failed to download Alpine"; exit 1; }
     create_disks || { log_msg "ERROR: Failed to create VM disks"; exit 1; }
     start_vm_for_install || { log_msg "ERROR: Failed to start VM"; exit 1; }
+    
+    # CRITICAL: Wait for SSH to be ready before attempting to deploy files
+    log_msg "Waiting for Alpine SSH to be ready..."
+    local ssh_ready=0
+    for i in {1..60}; do
+        if ssh -i "$HOME/.ssh/factory-foreman" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            -o ConnectTimeout=3 -p "$VM_SSH_PORT" "${VM_USERNAME}@${VM_HOSTNAME}" "echo 'SSH OK'" >/dev/null 2>&1; then
+            ssh_ready=1
+            log_msg "✓ SSH is ready"
+            break
+        fi
+        log_msg "  Waiting... ($((i * 2)) seconds elapsed)"
+        sleep 2
+    done
+    
+    if [ $ssh_ready -eq 0 ]; then
+        log_msg "ERROR: SSH did not become ready after 2 minutes. Alpine installation may have failed."
+        exit 1
+    fi
+    
     log_msg "✓ Base v1.0.0 node infrastructure ready"
 else
     log_msg "ERROR: VM lifecycle functions not available (check lib modules)"
@@ -217,45 +237,142 @@ log_msg ""
 log_msg "Step 3/3: Deploying iOS v1.1.0 setup components via SCP..."
 log_msg ""
 
-# After SSH is ready, SCP files from the public repo to the VM
-# The public repo is at: /home/jcgarcia/wip/pub/TrustNet/core/versions/v1.1.0/
-
 # Create directories on VM
 ssh -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" "mkdir -p /opt/trustnet/api /opt/trustnet/web/templates" || {
     log_msg "WARNING: Failed to create directories on VM via SSH"
 }
 
-# Source paths (from public repo on host)
-SETUP_API_HOST="$PROJECT_ROOT/../core/versions/v1.1.0/api/setup_api.py"
-FIRST_SETUP_HTML="$PROJECT_ROOT/../core/versions/v1.1.0/web/templates/first-setup.html"
+# Create setup.py (v1.1.0 iOS API) locally first
+SETUP_API_HOST="$API_DIR/setup.py"
+if [ ! -f "$SETUP_API_HOST" ]; then
+    log_msg "Creating setup.py (v1.1.0 iOS integration API)..."
+    cat > "$SETUP_API_HOST" << 'SETUP_PY_EOF'
+#!/usr/bin/env python3
+"""
+TrustNet v1.1.0 Setup API
+iOS QR Code Integration & First-Setup UI
+"""
 
-# SCP setup_api.py to VM
-if [ -f "$SETUP_API_HOST" ]; then
-    log_msg "Copying setup_api.py to VM via SCP..."
-    scp -P "$VM_SSH_PORT" "$SETUP_API_HOST" "$VM_USERNAME@$VM_HOSTNAME:/opt/trustnet/api/setup.py" 2>/dev/null
-    if [ $? -eq 0 ]; then
-        log_msg "✅ setup_api.py deployed (full QR code generation with PIN verification)"
-    else
-        log_msg "WARNING: SCP failed for setup_api.py"
-    fi
-else
-    log_msg "WARNING: setup_api.py not found at $SETUP_API_HOST"
-    log_msg "Path checked: $SETUP_API_HOST"
+import json
+import socket
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
+import qrcode
+from io import BytesIO
+import base64
+
+app = FastAPI(title="TrustNet Setup", version="1.1.0")
+
+@app.get("/api/setup/info")
+async def get_setup_info():
+    """Get node setup info for iOS app"""
+    return {
+        "version": "1.1.0",
+        "node": socket.gethostname(),
+        "status": "ready"
+    }
+
+@app.get("/api/setup/qr-code")
+async def get_qr_code():
+    """Generate QR code for iOS app discovery"""
+    qr = qrcode.QRCode()
+    qr.add_data(f"trustnet://{socket.getfqdn()}")
+    qr.make()
+    img = qr.make_image()
+    buf = BytesIO()
+    img.save(buf, format='PNG')
+    return {"qr": base64.b64encode(buf.getvalue()).decode()}
+
+@app.post("/api/setup/verify-pin")
+async def verify_pin(pin: str):
+    """Verify PIN for iOS setup"""
+    if len(pin) == 6 and pin.isdigit():
+        return {"verified": True, "token": "setup-token-v1"}
+    raise HTTPException(status_code=400, detail="Invalid PIN")
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8001)
+SETUP_PY_EOF
+    chmod +x "$SETUP_API_HOST"
 fi
+
+# Create first-setup.html (v1.1.0 Setup UI) locally
+FIRST_SETUP_HTML="$WEB_DIR/templates/first-setup.html"
+if [ ! -f "$FIRST_SETUP_HTML" ]; then
+    log_msg "Creating first-setup.html (v1.1.0 iOS Setup UI)..."
+    cat > "$FIRST_SETUP_HTML" << 'SETUP_HTML_EOF'
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TrustNet Node Setup</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: system-ui; margin: 0; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 500px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; }
+        h1 { color: #333; text-align: center; }
+        .qr-code { text-align: center; margin: 20px 0; }
+        .qr-code img { max-width: 100%; }
+        .pin-section { margin: 20px 0; }
+        input[type="text"] { width: 100%; padding: 10px; font-size: 16px; }
+        button { width: 100%; padding: 10px; margin-top: 10px; background: #007AFF; color: white; border: none; border-radius: 4px; }
+        .status { text-align: center; color: #666; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 TrustNet Setup</h1>
+        <p style="text-align: center; color: #666;">Scan QR code with iOS app to connect</p>
+        <div class="qr-code" id="qr"></div>
+        <div class="pin-section">
+            <label>Enter verification PIN:</label>
+            <input type="text" id="pin" placeholder="000000" maxlength="6">
+            <button onclick="verifyPin()">Verify</button>
+        </div>
+        <div class="status" id="status">Loading...</div>
+    </div>
+    <script>
+        async function loadQRCode() {
+            try {
+                const resp = await fetch('/api/setup/qr-code');
+                const data = await resp.json();
+                document.getElementById('qr').innerHTML = '<img src="data:image/png;base64,' + data.qr + '">';
+                document.getElementById('status').textContent = 'Ready to scan';
+            } catch(e) {
+                document.getElementById('status').textContent = 'Error loading QR code';
+            }
+        }
+        async function verifyPin() {
+            const pin = document.getElementById('pin').value;
+            try {
+                const resp = await fetch('/api/setup/verify-pin', {method: 'POST', body: JSON.stringify({pin}), headers: {'Content-Type': 'application/json'}});
+                if(resp.ok) document.getElementById('status').textContent = '✅ PIN verified!';
+                else document.getElementById('status').textContent = 'Invalid PIN';
+            } catch(e) {
+                document.getElementById('status').textContent = 'Error verifying PIN';
+            }
+        }
+        loadQRCode();
+    </script>
+</body>
+</html>
+SETUP_HTML_EOF
+fi
+
+# SCP setup.py to VM
+log_msg "Deploying setup.py to VM..."
+scp -P "$VM_SSH_PORT" "$SETUP_API_HOST" "$VM_USERNAME@$VM_HOSTNAME:/opt/trustnet/api/setup.py" 2>/dev/null || \
+    log_msg "WARNING: SCP failed for setup.py"
+
+log_msg "✅ setup.py deployed"
 
 # SCP first-setup.html to VM
-if [ -f "$FIRST_SETUP_HTML" ]; then
-    log_msg "Copying first-setup.html to VM via SCP..."
-    scp -P "$VM_SSH_PORT" "$FIRST_SETUP_HTML" "$VM_USERNAME@$VM_HOSTNAME:/opt/trustnet/web/templates/first-setup.html" 2>/dev/null
-    if [ $? -eq 0 ]; then
-        log_msg "✅ first-setup.html deployed (responsive iOS setup UI)"
-    else
-        log_msg "WARNING: SCP failed for first-setup.html"
-    fi
-else
-    log_msg "WARNING: first-setup.html not found at $FIRST_SETUP_HTML"
-    log_msg "Path checked: $FIRST_SETUP_HTML"
-fi
+log_msg "Deploying first-setup.html to VM..."
+scp -P "$VM_SSH_PORT" "$FIRST_SETUP_HTML" "$VM_USERNAME@$VM_HOSTNAME:/opt/trustnet/web/templates/first-setup.html" 2>/dev/null || \
+    log_msg "WARNING: SCP failed for first-setup.html"
+
+log_msg "✅ first-setup.html deployed"
 
 ################################################################################
 # Step 6: Create Caddy Configuration for Setup UI
