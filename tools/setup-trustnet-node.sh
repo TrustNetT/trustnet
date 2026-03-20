@@ -150,18 +150,18 @@ elif [ "$FRESH_MODE" = true ]; then
 fi
 
 ################################################################################
-# Step 2: Base Node Setup (v1.0.0)
+# Step 1: Verify and Initialize VM (ALL-IN-ONE INSTALLER)
 ################################################################################
 
 log_msg ""
-log_msg "Step 1/3: Setting up base v1.0.0 node infrastructure..."
+log_msg "Step 1/3: Creating and initializing Alpine VM..."
 log_msg ""
 
 mkdir -p "$VM_DIR" "$CACHE_DIR"
 
 # Create and boot the VM using sourced lifecycle functions
 if type -t ensure_qemu &> /dev/null; then
-    log_msg "Creating and configuring Alpine VM..."
+    log_msg "Creating Alpine VM from scratch..."
     ensure_qemu || { log_msg "ERROR: Failed to install QEMU"; exit 1; }
     check_dependencies || { log_msg "ERROR: Missing dependencies"; exit 1; }
     setup_ssh_keys || { log_msg "ERROR: Failed to setup SSH keys"; exit 1; }
@@ -188,7 +188,7 @@ if type -t ensure_qemu &> /dev/null; then
         exit 1
     fi
     
-    log_msg "✓ Base v1.0.0 node infrastructure ready"
+    log_msg "✓ AlpineVM created and ready for deployment"
 else
     log_msg "ERROR: VM lifecycle functions not available (check lib modules)"
     exit 1
