@@ -1,8 +1,8 @@
 #!/bin/bash
 #
 # TrustNet Node One-Liner Installer
-# Usage: curl -fsSL https://raw.githubusercontent.com/jcgarcia/TrustNet/main/install.sh | bash
-# Version: 1.0.0
+# Usage: curl -fsSL https://raw.githubusercontent.com/TrustNetT/trustnet/main/install.sh | bash
+# Version: 1.1.0 (latest production)
 #
 
 set -e
