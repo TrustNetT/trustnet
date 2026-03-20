@@ -7,8 +7,8 @@
 
 set -e
 
-REPO_URL="https://github.com/jcgarcia/TrustNet.git"
-RAW_URL="https://raw.githubusercontent.com/jcgarcia/TrustNet"
+REPO_URL="https://github.com/TrustNetT/trustnet.git"
+RAW_URL="https://raw.githubusercontent.com/TrustNetT/trustnet"
 REPO_DIR="$HOME/trustnet"
 BRANCH="${TRUSTNET_BRANCH:-main}"
 
