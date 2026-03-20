@@ -360,59 +360,56 @@ ssh -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" "mkdir -p /opt/trustnet/api /o
     log_msg "WARNING: Failed to create directories on VM"
 }
 
-# Source paths - use hardcoded paths from public repo (same check as earlier)
-if [ -d "/home/jcgarcia/GitProjects/TrustNet/TrustNet/core/versions/v1.1.0" ]; then
-    SETUP_API_HOST="/home/jcgarcia/GitProjects/TrustNet/TrustNet/core/versions/v1.1.0/api/setup_api.py"
-    FIRST_SETUP_HTML="/home/jcgarcia/GitProjects/TrustNet/TrustNet/core/versions/v1.1.0/web/templates/first-setup.html"
-    REQ_FILE="/home/jcgarcia/GitProjects/TrustNet/TrustNet/core/versions/v1.1.0/setup-requirements.txt"
-elif [ -d "/home/jcgarcia/wip/pub/TrustNet/core/versions/v1.1.0" ]; then
-    SETUP_API_HOST="/home/jcgarcia/wip/pub/TrustNet/core/versions/v1.1.0/api/setup_api.py"
-    FIRST_SETUP_HTML="/home/jcgarcia/wip/pub/TrustNet/core/versions/v1.1.0/web/templates/first-setup.html"
-    REQ_FILE="/home/jcgarcia/wip/pub/TrustNet/core/versions/v1.1.0/setup-requirements.txt"
-else
-    log_msg "WARNING: v1.1.0 files not found in standard locations"
-    SETUP_API_HOST=""
-    FIRST_SETUP_HTML=""
-    REQ_FILE=""
-fi
+# Download iOS v1.1.0 files from GitHub public repo
+# These are fetched fresh during installation so paths don't depend on host filesystem
+API_DOWNLOAD="https://raw.githubusercontent.com/TrustNetT/trustnet/main/core/versions/v1.1.0/api/setup_api.py"
+HTML_DOWNLOAD="https://raw.githubusercontent.com/TrustNetT/trustnet/main/core/versions/v1.1.0/web/templates/first-setup.html"
+REQ_DOWNLOAD="https://raw.githubusercontent.com/TrustNetT/trustnet/main/core/versions/v1.1.0/setup-requirements.txt"
 
-# Deploy setup_api.py
-if [ -f "$SETUP_API_HOST" ]; then
+# Download to temp locations on host
+TEMP_API="/tmp/setup_api_$$.py"
+TEMP_HTML="/tmp/first_setup_$$.html"
+TEMP_REQ="/tmp/requirements_$$.txt"
+
+log_msg "Downloading iOS v1.1.0 files from GitHub..."
+
+if curl -fsSL "$API_DOWNLOAD" -o "$TEMP_API" 2>/dev/null && [ -f "$TEMP_API" ]; then
     log_msg "SCP: setup_api.py → /opt/trustnet/api/setup.py"
-    scp -P "$VM_SSH_PORT" "$SETUP_API_HOST" "$VM_USERNAME@$VM_HOSTNAME:/opt/trustnet/api/setup.py" 2>/dev/null
+    scp -P "$VM_SSH_PORT" "$TEMP_API" "$VM_USERNAME@$VM_HOSTNAME:/opt/trustnet/api/setup.py" 2>/dev/null
     if [ $? -eq 0 ]; then
         log_msg "✅ setup_api.py deployed (full QR code generation with PIN verification)"
     else
         log_msg "WARNING: SCP failed for setup_api.py"
     fi
+    rm -f "$TEMP_API"
 else
-    log_msg "WARNING: setup_api.py not found at $SETUP_API_HOST"
+    log_msg "WARNING: Failed to download setup_api.py from GitHub"
 fi
 
-# Deploy first-setup.html
-if [ -f "$FIRST_SETUP_HTML" ]; then
+if curl -fsSL "$HTML_DOWNLOAD" -o "$TEMP_HTML" 2>/dev/null && [ -f "$TEMP_HTML" ]; then
     log_msg "SCP: first-setup.html → /opt/trustnet/web/templates/first-setup.html"
-    scp -P "$VM_SSH_PORT" "$FIRST_SETUP_HTML" "$VM_USERNAME@$VM_HOSTNAME:/opt/trustnet/web/templates/first-setup.html" 2>/dev/null
+    scp -P "$VM_SSH_PORT" "$TEMP_HTML" "$VM_USERNAME@$VM_HOSTNAME:/opt/trustnet/web/templates/first-setup.html" 2>/dev/null
     if [ $? -eq 0 ]; then
         log_msg "✅ first-setup.html deployed (responsive iOS setup UI)"
     else
         log_msg "WARNING: SCP failed for first-setup.html"
     fi
+    rm -f "$TEMP_HTML"
 else
-    log_msg "WARNING: first-setup.html not found at $FIRST_SETUP_HTML"
+    log_msg "WARNING: Failed to download first-setup.html from GitHub"
 fi
 
-# Deploy requirements.txt
-log_msg "Installing FastAPI on VM..."
-if [ -f "$REQ_FILE" ]; then
-    scp -P "$VM_SSH_PORT" "$REQ_FILE" "$VM_USERNAME@$VM_HOSTNAME:/tmp/requirements.txt" 2>/dev/null
+if curl -fsSL "$REQ_DOWNLOAD" -o "$TEMP_REQ" 2>/dev/null && [ -f "$TEMP_REQ" ]; then
+    log_msg "SCP: setup-requirements.txt → /tmp/requirements.txt"
+    scp -P "$VM_SSH_PORT" "$TEMP_REQ" "$VM_USERNAME@$VM_HOSTNAME:/tmp/requirements.txt" 2>/dev/null
     if [ $? -eq 0 ]; then
         log_msg "✅ requirements.txt deployed"
     else
-        log_msg "WARNING: Failed to deploy requirements.txt"
+        log_msg "WARNING: SCP failed for requirements.txt"
     fi
+    rm -f "$TEMP_REQ"
 else
-    log_msg "WARNING: requirements.txt not found at $REQ_FILE"
+    log_msg "WARNING: Failed to download requirements.txt from GitHub"
 fi
 
 # Install dependencies on VM
