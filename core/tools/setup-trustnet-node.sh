@@ -899,41 +899,46 @@ log_msg "✅ FastAPI installed on VM"
 log_msg "Creating systemd service for Setup API..."
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" << 'SSH_SERVICE_EOF'
 #!/bin/bash
-# Create systemd service for Setup API
-cat > /tmp/trustnet-setup.service << 'SERVICE_UNIT'
-[Unit]
-Description=TrustNet v1.1.0 Setup API
-After=network.target
-Wants=network-online.target
+# Create OpenRC init script for Setup API (Alpine Linux)
+cat > /tmp/trustnet-setup << 'SERVICE_UNIT'
+#!/sbin/openrc-run
 
-[Service]
-Type=simple
-user=_trustnet
-WorkingDirectory=/opt/trustnet/api
-ExecStart=/usr/bin/python3 /opt/trustnet/api/setup.py
-Restart=always
-RestartSec=10
-StandardOutput=journal
-StandardError=journal
-Environment="PYTHONUNBUFFERED=1"
+name="TrustNet v1.1.0 Setup API"
+description="FastAPI service for iOS QR code and PIN verification"
 
-[Install]
-WantedBy=multi-user.target
+command="/usr/bin/python3"
+command_args="/opt/trustnet/api/setup.py"
+command_user="warden:warden"
+command_background="yes"
+pidfile="/run/trustnet-setup.pid"
+
+# Ensure working directory exists
+start_pre() {
+    checkpath --directory --owner warden:warden --mode 0755 /opt/trustnet/api
+}
+
+# Service dependencies
+depend() {
+    need net
+    after caddy
+}
 SERVICE_UNIT
 
-# Install service
+chmod +x /tmp/trustnet-setup
+
+# Install OpenRC service
 if command -v doas &> /dev/null; then
-    doas cp /tmp/trustnet-setup.service /etc/init.d/trustnet-setup.service 2>/dev/null || true
-    doas rc-service trustnet-setup start 2>/dev/null || true
+    doas cp /tmp/trustnet-setup /etc/init.d/trustnet-setup
+    doas chmod +x /etc/init.d/trustnet-setup
+    doas rc-service trustnet-setup start
 elif command -v sudo &> /dev/null; then
-    sudo cp /tmp/trustnet-setup.service /etc/systemd/system/trustnet-setup.service 2>/dev/null || true
-    sudo systemctl daemon-reload 2>/dev/null || true
-    sudo systemctl enable trustnet-setup 2>/dev/null || true
-    sudo systemctl start trustnet-setup 2>/dev/null || true
+    sudo cp /tmp/trustnet-setup /etc/init.d/trustnet-setup
+    sudo chmod +x /etc/init.d/trustnet-setup
+    sudo rc-service trustnet-setup start
 fi
 SSH_SERVICE_EOF
 
-log_msg "✅ Setup API service created and started"
+log_msg "✅ Setup API service created and started (OpenRC)"
 
 # Deploy Caddy configuration
 log_msg "Updating Caddy configuration..."
@@ -956,7 +961,7 @@ if ! grep -q "import /etc/caddy/Caddyfile.setup" "$CADDY_FILE" 2>/dev/null; then
     elif command -v sudo &> /dev/null; then
         sudo cp /tmp/Caddyfile.setup /etc/caddy/Caddyfile.setup 2>/dev/null || true
         echo "import /etc/caddy/Caddyfile.setup" | sudo tee -a "$CADDY_FILE" 2>/dev/null || true
-        sudo systemctl reload caddy 2>/dev/null || true
+        sudo rc-service caddy reload 2>/dev/null || sudo systemctl reload caddy 2>/dev/null || true
     fi
 fi
 SSH_CADDY_EOF
