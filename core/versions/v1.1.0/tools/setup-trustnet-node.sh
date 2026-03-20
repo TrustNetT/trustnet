@@ -197,84 +197,52 @@ fi
 log_msg "FastAPI requirements: $(awk '/^[^#]/ && NF' $API_DIR/requirements.txt | wc -l) packages"
 
 ################################################################################
-# Step 4: Copy Setup API from Repository
+# Step 4: SCP iOS v1.1.0 Components to VM
 ################################################################################
 
 log_msg ""
-log_msg "Step 3/3: Deploying iOS setup components..."
+log_msg "Step 3/3: Deploying iOS v1.1.0 setup components via SCP..."
 log_msg ""
 
-# Copy setup_api.py from repo if available, otherwise create minimal version
-SETUP_API_SOURCE="$VERSION_DIR/api/setup_api.py"
+# After SSH is ready, SCP files from the public repo to the VM
+# The public repo is at: /home/jcgarcia/wip/pub/TrustNet/core/versions/v1.1.0/
 
-if [ -f "$SETUP_API_SOURCE" ]; then
-    log_msg "Copying setup_api.py from repository..."
-    cp "$SETUP_API_SOURCE" "$API_DIR/setup.py"
-    log_msg "✅ Setup API copied from repo ($(wc -l < $API_DIR/setup.py) lines)"
+# Create directories on VM
+ssh -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" "mkdir -p /opt/trustnet/api /opt/trustnet/web/templates" || {
+    log_msg "WARNING: Failed to create directories on VM via SSH"
+}
+
+# Source paths (from public repo on host)
+SETUP_API_HOST="$PROJECT_ROOT/../core/versions/v1.1.0/api/setup_api.py"
+FIRST_SETUP_HTML="$PROJECT_ROOT/../core/versions/v1.1.0/web/templates/first-setup.html"
+
+# SCP setup_api.py to VM
+if [ -f "$SETUP_API_HOST" ]; then
+    log_msg "Copying setup_api.py to VM via SCP..."
+    scp -P "$VM_SSH_PORT" "$SETUP_API_HOST" "$VM_USERNAME@$VM_HOSTNAME:/opt/trustnet/api/setup.py" 2>/dev/null
+    if [ $? -eq 0 ]; then
+        log_msg "✅ setup_api.py deployed (full QR code generation with PIN verification)"
+    else
+        log_msg "WARNING: SCP failed for setup_api.py"
+    fi
 else
-    log_msg "WARNING: setup_api.py not found at $SETUP_API_SOURCE"
-    log_msg "Using fallback minimal setup.py"
-    
-    # Create minimal fallback version
-    cat > "$API_DIR/setup.py" << 'SETUP_PY_FALLBACK'
-#!/usr/bin/env python3
-"""Minimal TrustNet Setup API fallback"""
-import sys
-try:
-    from fastapi import FastAPI
-    from fastapi.responses import JSONResponse
-    import uvicorn
-    import secrets
-except ImportError as e:
-    print(f"Error: {e}. Install: pip install fastapi uvicorn qrcode[pil]")
-    sys.exit(1)
-
-app = FastAPI(title="TrustNet Setup API", version="1.1.0")
-
-@app.get("/api/health")
-async def health():
-    return {"status": "healthy", "version": "1.1.0"}
-
-@app.get("/api/setup/qr-code")
-async def qr_code():
-    return {"qr_image_base64": "", "pin_code": str(secrets.randbelow(1000000)).zfill(6), "node_id": "trustnet-demo"}
-
-if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8001)
-SETUP_PY_FALLBACK
+    log_msg "WARNING: setup_api.py not found at $SETUP_API_HOST"
+    log_msg "Path checked: $SETUP_API_HOST"
 fi
 
-################################################################################
-# Step 5: Copy Web UI Template from Repository
-################################################################################
-
-# Copy first-setup.html from repo if available
-HTML_SOURCE="$VERSION_DIR/web/templates/first-setup.html"
-
-if [ -f "$HTML_SOURCE" ]; then
-    log_msg "Copying first-setup.html from repository..."
-    cp "$HTML_SOURCE" "$WEB_DIR/templates/first-setup.html"
-    log_msg "✅ Web UI copied from repo ($(wc -l < $WEB_DIR/templates/first-setup.html) lines)"
+# SCP first-setup.html to VM
+if [ -f "$FIRST_SETUP_HTML" ]; then
+    log_msg "Copying first-setup.html to VM via SCP..."
+    scp -P "$VM_SSH_PORT" "$FIRST_SETUP_HTML" "$VM_USERNAME@$VM_HOSTNAME:/opt/trustnet/web/templates/first-setup.html" 2>/dev/null
+    if [ $? -eq 0 ]; then
+        log_msg "✅ first-setup.html deployed (responsive iOS setup UI)"
+    else
+        log_msg "WARNING: SCP failed for first-setup.html"
+    fi
 else
-    log_msg "WARNING: first-setup.html not found at $HTML_SOURCE"
-    log_msg "Creating minimal fallback UI..."
-    
-    # Minimal fallback HTML
-    cat > "$WEB_DIR/templates/first-setup.html" << 'HTML_FALLBACK'
-<!DOCTYPE html>
-<html>
-<head><title>TrustNet Setup</title></head>
-<body>
-    <h1>TrustNet Node Setup v1.1.0</h1>
-    <p>QR Code loading...</p>
-    <div id="qr"></div>
-    <script>
-        fetch('/api/setup/qr-code').then(r=>r.json()).then(d=>{
-            const img = document.createElement('img');
-            img.src = 'data:image/png;base64,'+d.qr_image_base64;
-            document.getElementById('qr').appendChild(img);
-        });
-    </script>
+    log_msg "WARNING: first-setup.html not found at $FIRST_SETUP_HTML"
+    log_msg "Path checked: $FIRST_SETUP_HTML"
+fi
 </body>
 </html>
 HTML_FALLBACK
