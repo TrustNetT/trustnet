@@ -34,11 +34,12 @@ else
     mkdir -p "$LOG_DIR"
 fi
 
-exec > >(tee -a "$LOG_FILE")
-exec 2>&1
-
 log_msg() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $@"
+    local msg="[$(date '+%Y-%m-%d %H:%M:%S')] $@"
+    # Output to terminal (always visible, even when piped)
+    echo "$msg"
+    # Also write to log file
+    echo "$msg" >> "$LOG_FILE" 2>/dev/null || true
 }
 
 log_msg "╔══════════════════════════════════════════════════════════╗"
@@ -51,7 +52,7 @@ log_msg ""
 log_msg "Installation log: $LOG_FILE"
 log_msg ""
 
-trap 'log_msg "ERROR: Installation failed at line $LINENO. Check log: $LOG_FILE" >&2; exit 1' ERR
+trap 'log_msg "❌ ERROR: Installation failed at line $LINENO. Check log: $LOG_FILE"; exit 1' ERR
 
 # Parse arguments
 AUTO_MODE=false
@@ -196,42 +197,77 @@ if [ ! -d "$VM_DIR" ] || [ "$FRESH_MODE" = true ]; then
     log_msg ""
     
     # 1. Verify QEMU is available
+    log_msg "⏳ Step 1/12: Verifying QEMU installation..."
     ensure_qemu
+    log_msg "✅ QEMU ready"
+    log_msg ""
     
     # 2. Check all dependencies
+    log_msg "⏳ Step 2/12: Checking dependencies..."
     check_dependencies
+    log_msg "✅ Dependencies verified"
+    log_msg ""
     
     # 3. Setup SSH keys for VM access
+    log_msg "⏳ Step 3/12: Setting up SSH keys..."
     setup_ssh_keys
+    log_msg "✅ SSH keys configured"
+    log_msg ""
     
     # 4. Download Alpine Linux ISO (cached locally)
+    log_msg "⏳ Step 4/12: Downloading Alpine Linux ISO (may be cached)..."
     download_alpine "$ALPINE_ARCH"
+    log_msg "✅ Alpine Linux ready"
+    log_msg ""
     
     # 5. Create QCOW2 disks (system, cache, data)
+    log_msg "⏳ Step 5/12: Creating QCOW2 virtual disks..."
     create_disks
+    log_msg "✅ Virtual disks created"
+    log_msg ""
     
     # 6. Start VM with Alpine installer
+    log_msg "⏳ Step 6/12: Starting VM with Alpine installer (this may take 1-2 minutes)..."
     start_vm_for_install
+    log_msg "✅ VM started"
+    log_msg ""
     
     # 7. Bootstrap Alpine installation on the VM
+    log_msg "⏳ Step 7/12: Installing Alpine Linux inside VM (this may take 2-3 minutes)..."
     configure_installed_vm
+    log_msg "✅ Alpine Linux installed"
+    log_msg ""
     
     # 8. Setup additional disks on VM
+    log_msg "⏳ Step 8/12: Configuring cache and data disks..."
     setup_cache_disk_in_vm
     setup_data_disk_in_vm
+    log_msg "✅ Disk configuration complete"
+    log_msg ""
     
     # 9. Install Cosmos SDK (blockchain core)
+    log_msg "⏳ Step 9/12: Installing Cosmos SDK (this may take 3-5 minutes)..."
     install_cosmos_sdk
+    log_msg "✅ Cosmos SDK installed"
+    log_msg ""
     
     # 10. Install and configure certificates
+    log_msg "⏳ Step 10/12: Setting up TLS certificates..."
     install_certificates_on_host
+    log_msg "✅ Certificates configured"
+    log_msg ""
     
     # 11. Install Caddy reverse proxy
+    log_msg "⏳ Step 11/12: Installing Caddy reverse proxy..."
     install_caddy_via_ssh
+    log_msg "✅ Caddy installed"
+    log_msg ""
     
     # 12. Setup MOTD banner
+    log_msg "⏳ Step 12/12: Setting up system banners..."
     setup_motd_via_ssh
-    
+    log_msg "✅ System banners configured"
+    log_msg ""
     log_msg ""
     log_msg "✅ v1.0.0 Base infrastructure setup complete"
 else
