@@ -77,6 +77,19 @@ done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 
+################################################################################
+# Source Library Modules
+################################################################################
+
+# Source common functions and bootstrap modules
+for module in common.sh vm-lifecycle.sh vm-bootstrap.sh cache-manager.sh install-caddy.sh install-cosmos-sdk.sh install-certificates.sh setup-motd.sh; do
+    if [ -f "$SCRIPT_DIR/lib/$module" ]; then
+        source "$SCRIPT_DIR/lib/$module" || {
+            log_msg "WARNING: Failed to source library module: $module"
+        }
+    fi
+done
+
 # Detect v1.1.0 directory
 if [ -d "$SCRIPT_DIR/../v1.1.0" ]; then
     VERSION_DIR="$SCRIPT_DIR/../v1.1.0"
@@ -144,14 +157,40 @@ elif [ "$FRESH_MODE" = true ]; then
 fi
 
 ################################################################################
+# VM Creation & Bootstrap (required before all steps)
+################################################################################
+
+log_msg ""
+log_msg "Initializing TrustNet VM..."
+log_msg ""
+
+mkdir -p "$VM_DIR" "$CACHE_DIR"
+
+# Call lifecycle functions to create and boot the VM
+if type -t ensure_qemu &> /dev/null; then
+    ensure_qemu
+    check_dependencies
+    setup_ssh_keys
+    download_alpine
+    create_disks
+    start_vm_for_install
+    if [ $? -ne 0 ]; then
+        log_msg "ERROR: VM initialization failed"
+        exit 1
+    fi
+    log_msg "✓ VM created and booted successfully"
+else
+    log_msg "ERROR: VM lifecycle functions not available (modules not properly sourced)"
+    exit 1
+fi
+
+################################################################################
 # Step 2: Base Node Setup (v1.0.0)
 ################################################################################
 
 log_msg ""
 log_msg "Step 1/3: Setting up base v1.0.0 node infrastructure..."
 log_msg ""
-
-mkdir -p "$VM_DIR" "$CACHE_DIR"
 
 # Source v1.0.0 setup functions (if available)
 if [ -f "$PROJECT_ROOT/core/versions/v1.0.0/tools/lib/install-caddy.sh" ]; then
