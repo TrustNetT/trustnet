@@ -213,12 +213,22 @@ ssh -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" "mkdir -p /opt/trustnet/api /o
 }
 
 # Source paths (from public repo on host)
-SETUP_API_HOST="$PROJECT_ROOT/../core/versions/v1.1.0/api/setup_api.py"
-FIRST_SETUP_HTML="$PROJECT_ROOT/../core/versions/v1.1.0/web/templates/first-setup.html"
+# Use symlink path in ~/GitProjects (standard workspace location)
+if [ -d "/home/jcgarcia/GitProjects/TrustNet/TrustNet/core/versions/v1.1.0" ]; then
+    SETUP_API_HOST="/home/jcgarcia/GitProjects/TrustNet/TrustNet/core/versions/v1.1.0/api/setup_api.py"
+    FIRST_SETUP_HTML="/home/jcgarcia/GitProjects/TrustNet/TrustNet/core/versions/v1.1.0/web/templates/first-setup.html"
+elif [ -d "/home/jcgarcia/wip/pub/TrustNet/core/versions/v1.1.0" ]; then
+    SETUP_API_HOST="/home/jcgarcia/wip/pub/TrustNet/core/versions/v1.1.0/api/setup_api.py"
+    FIRST_SETUP_HTML="/home/jcgarcia/wip/pub/TrustNet/core/versions/v1.1.0/web/templates/first-setup.html"
+else
+    SETUP_API_HOST="$PROJECT_ROOT/../core/versions/v1.1.0/api/setup_api.py"
+    FIRST_SETUP_HTML="$PROJECT_ROOT/../core/versions/v1.1.0/web/templates/first-setup.html"
+fi
 
 # SCP setup_api.py to VM
 if [ -f "$SETUP_API_HOST" ]; then
     log_msg "Copying setup_api.py to VM via SCP..."
+    log_msg "Source: $SETUP_API_HOST"
     scp -P "$VM_SSH_PORT" "$SETUP_API_HOST" "$VM_USERNAME@$VM_HOSTNAME:/opt/trustnet/api/setup.py" 2>/dev/null
     if [ $? -eq 0 ]; then
         log_msg "✅ setup_api.py deployed (full QR code generation with PIN verification)"
@@ -226,13 +236,14 @@ if [ -f "$SETUP_API_HOST" ]; then
         log_msg "WARNING: SCP failed for setup_api.py"
     fi
 else
-    log_msg "WARNING: setup_api.py not found at $SETUP_API_HOST"
-    log_msg "Path checked: $SETUP_API_HOST"
+    log_msg "WARNING: setup_api.py not found"
+    log_msg "Checked: $SETUP_API_HOST"
 fi
 
 # SCP first-setup.html to VM
 if [ -f "$FIRST_SETUP_HTML" ]; then
     log_msg "Copying first-setup.html to VM via SCP..."
+    log_msg "Source: $FIRST_SETUP_HTML"
     scp -P "$VM_SSH_PORT" "$FIRST_SETUP_HTML" "$VM_USERNAME@$VM_HOSTNAME:/opt/trustnet/web/templates/first-setup.html" 2>/dev/null
     if [ $? -eq 0 ]; then
         log_msg "✅ first-setup.html deployed (responsive iOS setup UI)"
@@ -240,8 +251,8 @@ if [ -f "$FIRST_SETUP_HTML" ]; then
         log_msg "WARNING: SCP failed for first-setup.html"
     fi
 else
-    log_msg "WARNING: first-setup.html not found at $FIRST_SETUP_HTML"
-    log_msg "Path checked: $FIRST_SETUP_HTML"
+    log_msg "WARNING: first-setup.html not found"
+    log_msg "Checked: $FIRST_SETUP_HTML"
 fi
 </body>
 </html>
