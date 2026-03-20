@@ -889,15 +889,16 @@ cat "$REQ_FILE" | ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/nul
 # Install dependencies on VM
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" << 'SSH_INSTALL_EOF'
 #!/bin/bash
-set -e
 
 if command -v apk &> /dev/null; then
-    doas apk add --no-cache python3 python3-dev py3-pip libjpeg zlib-dev gcc musl-dev 2>/dev/null || true
-    doas pip install --no-cache -r /tmp/requirements.txt 2>/dev/null || true
+    # Alpine Linux
+    doas apk add --no-cache python3 python3-dev py3-pip libjpeg zlib-dev gcc musl-dev
+    doas python3 -m pip install --no-cache-dir --no-deps -r /tmp/requirements.txt
 elif command -v apt &> /dev/null; then
-    sudo apt-get update 2>/dev/null || true
-    sudo apt-get install -y python3-pip python3-dev libjpeg-dev zlib1g-dev 2>/dev/null || true
-    sudo pip3 install -r /tmp/requirements.txt 2>/dev/null || true
+    # Debian/Ubuntu
+    sudo apt-get update || true
+    sudo apt-get install -y python3-pip python3-dev libjpeg-dev zlib1g-dev
+    sudo python3 -m pip install --no-cache-dir -r /tmp/requirements.txt
 fi
 SSH_INSTALL_EOF
 log_msg "✅ FastAPI installed on VM"
