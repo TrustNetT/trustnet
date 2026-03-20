@@ -113,6 +113,36 @@ log_msg "  SSH Port: $VM_SSH_PORT"
 log_msg ""
 
 ################################################################################
+# Source Library Modules (RESTORED - Essential for v1.0.0 base)
+################################################################################
+
+# Determine lib directory location
+if [ -d "$SCRIPT_DIR/lib" ]; then
+    LIB_DIR="$SCRIPT_DIR/lib"
+elif [ -d "$SCRIPT_DIR/../lib" ]; then
+    LIB_DIR="$SCRIPT_DIR/../lib"
+else
+    log_msg "ERROR: lib directory not found at $SCRIPT_DIR/lib or $SCRIPT_DIR/../lib"
+    exit 1
+fi
+
+# Source all required modules
+for module in common.sh cache-manager.sh vm-lifecycle.sh vm-bootstrap.sh install-certificates.sh install-cosmos-sdk.sh install-caddy.sh setup-motd.sh; do
+    if [ ! -f "$LIB_DIR/$module" ]; then
+        log_msg "ERROR: Required module not found: $LIB_DIR/$module"
+        exit 1
+    fi
+    source "$LIB_DIR/$module"
+done
+
+# Create compatibility wrapper: modules use log(), main script uses log_msg()
+log() { log_msg "$@"; }
+export -f log
+
+log_msg "✓ All library modules loaded successfully"
+log_msg ""
+
+################################################################################
 # Step 1: Check for Existing v1.0.0 Node
 ################################################################################
 
@@ -151,7 +181,7 @@ elif [ "$FRESH_MODE" = true ]; then
 fi
 
 ################################################################################
-# Step 2: Base Node Setup (v1.0.0)
+# Step 2: v1.0.0 Base Node Setup (RESTORED - ESSENTIAL)
 ################################################################################
 
 log_msg ""
@@ -160,12 +190,53 @@ log_msg ""
 
 mkdir -p "$VM_DIR" "$CACHE_DIR"
 
-# Source v1.0.0 setup functions (if available)
-if [ -f "$PROJECT_ROOT/core/versions/v1.0.0/tools/lib/install-caddy.sh" ]; then
-    log_msg "Using v1.0.0 base installation scripts"
-    # Base setup logic would go here (inherited from v1.0.0)
+# Check if fresh installation needed (VM doesn't exist yet)
+if [ ! -d "$VM_DIR" ] || [ "$FRESH_MODE" = true ]; then
+    log_msg "Creating fresh v1.0.0 base infrastructure..."
+    log_msg ""
+    
+    # 1. Verify QEMU is available
+    ensure_qemu
+    
+    # 2. Check all dependencies
+    check_dependencies
+    
+    # 3. Setup SSH keys for VM access
+    setup_ssh_keys
+    
+    # 4. Download Alpine Linux ISO (cached locally)
+    download_alpine "$ALPINE_ARCH"
+    
+    # 5. Create QCOW2 disks (system, cache, data)
+    create_disks
+    
+    # 6. Start VM with Alpine installer
+    start_vm_for_install
+    
+    # 7. Bootstrap Alpine installation on the VM
+    configure_installed_vm
+    
+    # 8. Setup additional disks on VM
+    setup_cache_disk_in_vm
+    setup_data_disk_in_vm
+    
+    # 9. Install Cosmos SDK (blockchain core)
+    install_cosmos_sdk
+    
+    # 10. Install and configure certificates
+    install_certificates_on_host
+    
+    # 11. Install Caddy reverse proxy
+    install_caddy_via_ssh
+    
+    # 12. Setup MOTD banner
+    setup_motd_via_ssh
+    
+    log_msg ""
+    log_msg "✅ v1.0.0 Base infrastructure setup complete"
 else
-    log_msg "Note: Using fallback base installation. Recommend running v1.0.0 setup first."
+    log_msg "Using existing v1.0.0 infrastructure"
+    log_msg "VM found at: $VM_DIR"
 fi
 
 ################################################################################
