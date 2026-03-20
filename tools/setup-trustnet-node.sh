@@ -1,25 +1,24 @@
 #!/bin/bash
-# Version: 1.1.0 - TrustNet Node Setup with iOS QR Integration
+# Version: 1.0.0 - TrustNet Node Setup
 
 ################################################################################
-# TrustNet Node v1.1.0 - Fully Automated Setup
+# TrustNet Node - Fully Automated Setup
 #
-# Features:
-#   - Base v1.0.0 node setup (preserved)
-#   - iOS QR code discovery for node connection
-#   - First-time setup web UI
-#   - Automated FastAPI endpoints
-#   - PIN-based verification system
-#   - Certificate fingerprinting for security
+# Creates a complete TrustNet blockchain node with:
+#   - Hostname: trustnet.local
+#   - User: ${VM_USERNAME} (warden) with sudo
+#   - SSH key authentication  
+#   - Blockchain tools: Cosmos SDK, Ignite CLI, TrustNet client
+#   - SSL/HTTPS with Let's Encrypt
+#   - Automated Alpine installation
+#   - SSH config on host
 #
 # Usage:
-#   ./setup-trustnet-node.sh [--auto|-y] [--arch=x86_64|aarch64] [--upgrade|--fresh]
+#   ./setup-trustnet-node.sh [--auto|-y] [--arch=x86_64|aarch64]
 #
 #   --auto, -y             Use recommended settings without prompts
-#   --arch=x86_64          Use x86_64 architecture (default)
-#   --arch=aarch64         Use ARM64 architecture
-#   --upgrade              Upgrade existing v1.0.0 node (preserves data)
-#   --fresh                Fresh v1.1.0 installation (no data migration)
+#   --arch=x86_64          Use x86_64 architecture (default, fast KVM on Intel/AMD)
+#   --arch=aarch64         Use ARM64 architecture (for cloud pods, slow on x86_64 hosts)
 #
 ################################################################################
 
@@ -28,45 +27,45 @@ set -euo pipefail
 # Logging configuration
 LOG_DIR="${HOME}/.trustnet/logs"
 if [ -n "${TRUSTNET_LOG_FILE:-}" ]; then
+    # Use log file from install.sh
     LOG_FILE="$TRUSTNET_LOG_FILE"
 else
-    LOG_FILE="${LOG_DIR}/setup-v1.1.0-$(date +%Y%m%d-%H%M%S).log"
+    # Create new log file
+    LOG_FILE="${LOG_DIR}/setup-$(date +%Y%m%d-%H%M%S).log"
     mkdir -p "$LOG_DIR"
 fi
 
+# All output goes to both console and log file
 exec > >(tee -a "$LOG_FILE")
 exec 2>&1
 
-log_msg() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $@"
-}
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting TrustNet Node setup..."
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Log file: $LOG_FILE"
 
-log_msg "╔══════════════════════════════════════════════════════════╗"
-log_msg "║                                                          ║"
-log_msg "║    TrustNet Node v1.1.0 Setup                            ║"
-log_msg "║    iOS QR Code Integration                               ║"
-log_msg "║                                                          ║"
-log_msg "╚══════════════════════════════════════════════════════════╝"
-log_msg ""
-log_msg "Installation log: $LOG_FILE"
-log_msg ""
+# Trap errors and cleanup
+trap 'echo "[$(date +\"%Y-%m-%d %H:%M:%S\")] ERROR: Installation failed at line $LINENO. Check log: $LOG_FILE" >&2; exit 1' ERR
 
-trap 'log_msg "ERROR: Installation failed at line $LINENO. Check log: $LOG_FILE" >&2; exit 1' ERR
-
-# Parse arguments
+# Parse command-line arguments
 AUTO_MODE=false
-ALPINE_ARCH="x86_64"
-UPGRADE_MODE=false
-FRESH_MODE=false
-
+ALPINE_ARCH="x86_64"  # Default to x86_64 for speed (KVM on Intel/AMD hosts)
 for arg in "$@"; do
     case $arg in
-        --auto|-y) AUTO_MODE=true; shift ;;
-        --arch=x86_64) ALPINE_ARCH="x86_64"; shift ;;
-        --arch=aarch64) ALPINE_ARCH="aarch64"; shift ;;
-        --upgrade) UPGRADE_MODE=true; shift ;;
-        --fresh) FRESH_MODE=true; shift ;;
-        *) log_msg "Warning: Unknown argument $arg"; shift ;;
+        --auto|-y)
+            AUTO_MODE=true
+            shift
+            ;;
+        --arch=x86_64)
+            ALPINE_ARCH="x86_64"
+            shift
+            ;;
+        --arch=aarch64)
+            ALPINE_ARCH="aarch64"
+            shift
+            ;;
+        --arch=*)
+            echo "Error: Invalid architecture. Use --arch=x86_64 or --arch=aarch64"
+            exit 1
+            ;;
     esac
 done
 
@@ -75,588 +74,431 @@ done
 ################################################################################
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
-# Detect v1.1.0 directory
-if [ -d "$SCRIPT_DIR/../v1.1.0" ]; then
-    VERSION_DIR="$SCRIPT_DIR/../v1.1.0"
-elif [ -d "$SCRIPT_DIR/versions/v1.1.0" ]; then
-    VERSION_DIR="$SCRIPT_DIR/versions/v1.1.0"
+# Detect if we're running from one-liner install (~/trustnet/) or from repo
+if [ "$(basename "$SCRIPT_DIR")" = "trustnet" ]; then
+    # One-liner install: ~/trustnet/setup-trustnet-node.sh
+    PROJECT_ROOT="$SCRIPT_DIR"
 else
-    VERSION_DIR="$SCRIPT_DIR"
+    # Development/repo: ~/GitProjects/TrustNet/trustnet-wip/tools/setup-trustnet-node.sh
+    PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 fi
 
+# All TrustNet persistent data goes in ~/.trustnet/
+# This ensures cache, backups, and keys are in one place
 CACHE_DIR="${HOME}/.trustnet/cache"
+
 VM_DIR="${HOME}/vms/trustnet"
 VM_NAME="trustnet"
 VM_MEMORY="2G"
 VM_CPUS="2"
 VM_SSH_PORT="2223"
 
+# TrustNet Node Configuration
 VM_HOSTNAME="trustnet.local"
 VM_USERNAME="warden"
-VM_PASSWORD="$(openssl rand -base64 12)"  # Random password for console access
+SSH_KEY_NAME="trustnet-warden"
 
-# Disk file paths (required by vm-lifecycle.sh)
-SYSTEM_DISK="${VM_DIR}/trustnet.qcow2"
-CACHE_DISK="${VM_DIR}/trustnet-cache.qcow2"
-DATA_DISK="${VM_DIR}/trustnet-data.qcow2"
-SYSTEM_DISK_SIZE="50G"
+# Disk configuration
+SYSTEM_DISK_SIZE="20G"
+CACHE_DISK_SIZE="5G"
+DATA_DISK_SIZE="30G"
+SYSTEM_DISK="${VM_DIR}/${VM_NAME}.qcow2"
+CACHE_DISK="${VM_DIR}/${VM_NAME}-cache.qcow2"
+DATA_DISK="${VM_DIR}/${VM_NAME}-data.qcow2"
 
-log_msg ""
-log_msg "Configuration:"
-log_msg "  Architecture: $ALPINE_ARCH"
-log_msg "  VM Directory: $VM_DIR"
-log_msg "  Cache Directory: $CACHE_DIR"
-log_msg "  SSH Port: $VM_SSH_PORT"
-log_msg ""
+# Alpine configuration (will be auto-detected to latest stable)
+ALPINE_VERSION=""  # Auto-detect latest
+# ALPINE_ARCH set from command-line args (defaults to x86_64)
 
-################################################################################
-# Step 1: Check for Existing v1.0.0 Node
-################################################################################
-
-if [ -d "$VM_DIR/disk" ] && [ ! "$FRESH_MODE" = true ]; then
-    log_msg "Found existing TrustNet node. Checking version..."
-    
-    if [ "$AUTO_MODE" = false ]; then
-        log_msg ""
-        log_msg "Options:"
-        log_msg "  1) Upgrade to v1.1.0 (preserves blockchain data, v1.0.0 stays as backup)"
-        log_msg "  2) Fresh v1.1.0 installation (no data migration)"
-        log_msg "  3) Keep current version (exit)"
-        read -p "Choice [1-3]: " choice
-        
-        case $choice in
-            1) UPGRADE_MODE=true; FRESH_MODE=false ;;
-            2) FRESH_MODE=true; UPGRADE_MODE=false ;;
-            3) log_msg "Keeping current version. Exiting."; exit 0 ;;
-            *) log_msg "Invalid choice. Using upgrade mode."; UPGRADE_MODE=true ;;
-        esac
-    else
-        UPGRADE_MODE=true
-    fi
-fi
-
-if [ "$UPGRADE_MODE" = true ]; then
-    log_msg "UPGRADE MODE: Preserving v1.0.0 data and creating v1.1.0 upgrade"
-    BACKUP_DIR="$VM_DIR/backup-v1.0.0-$(date +%Y%m%d-%H%M%S)"
-    log_msg "Backup location: $BACKUP_DIR"
-elif [ "$FRESH_MODE" = true ]; then
-    log_msg "FRESH MODE: Starting v1.1.0 from scratch"
-    if [ -d "$VM_DIR" ]; then
-        log_msg "Removing existing VM directory..."
-        rm -rf "$VM_DIR"
-    fi
-fi
+# Export variables for modules
+export SCRIPT_DIR PROJECT_ROOT VM_DIR VM_NAME VM_MEMORY VM_CPUS VM_SSH_PORT
+export VM_HOSTNAME VM_USERNAME SSH_KEY_NAME
+export SYSTEM_DISK_SIZE CACHE_DISK_SIZE DATA_DISK_SIZE SYSTEM_DISK CACHE_DISK DATA_DISK
+export ALPINE_VERSION ALPINE_ARCH CACHE_DIR
 
 ################################################################################
-# Source Library Modules (CRITICAL)
+# Source Modules
 ################################################################################
 
-log_msg "Loading library modules..."
-
-MODULES=(
-    "common.sh"
-    "vm-lifecycle.sh"
-    "vm-bootstrap.sh"
-    "cache-manager.sh"
-    "install-caddy.sh"
-    "install-cosmos-sdk.sh"
-    "install-certificates.sh"
-    "setup-motd.sh"
-)
-
-for module in "${MODULES[@]}"; do
-    module_path="$SCRIPT_DIR/lib/$module"
-    if [ -f "$module_path" ]; then
-        source "$module_path" || {
-            log_msg "ERROR: Failed to source module: $module"
-            exit 1
-        }
-        log_msg "  ✓ Loaded: $module"
-    else
-        log_msg "ERROR: Required module not found: $module_path"
-        exit 1
-    fi
-done
-
-log_msg "All modules loaded successfully."
-log_msg ""
-
-################################################################################
-# Step 1: Verify and Initialize VM (ALL-IN-ONE INSTALLER)
-################################################################################
-
-log_msg ""
-log_msg "Step 1/3: Creating and initializing Alpine VM..."
-log_msg ""
-
-mkdir -p "$VM_DIR" "$CACHE_DIR"
-
-# Create and boot the VM using sourced lifecycle functions
-if type -t ensure_qemu &> /dev/null; then
-    log_msg "Creating Alpine VM from scratch..."
-    ensure_qemu || { log_msg "ERROR: Failed to install QEMU"; exit 1; }
-    check_dependencies || { log_msg "ERROR: Missing dependencies"; exit 1; }
-    setup_ssh_keys || { log_msg "ERROR: Failed to setup SSH keys"; exit 1; }
-    download_alpine || { log_msg "ERROR: Failed to download Alpine"; exit 1; }
-    create_disks || { log_msg "ERROR: Failed to create VM disks"; exit 1; }
-    start_vm_for_install || { log_msg "ERROR: Failed to start VM"; exit 1; }
-    
-    # CRITICAL: Wait for SSH to be ready before attempting to deploy files
-    log_msg "Waiting for Alpine SSH to be ready..."
-    local ssh_ready=0
-    for i in {1..60}; do
-        if ssh -i "$HOME/.ssh/factory-foreman" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-            -o ConnectTimeout=3 -p "$VM_SSH_PORT" "${VM_USERNAME}@${VM_HOSTNAME}" "echo 'SSH OK'" >/dev/null 2>&1; then
-            ssh_ready=1
-            log_msg "✓ SSH is ready"
-            break
-        fi
-        log_msg "  Waiting... ($((i * 2)) seconds elapsed)"
-        sleep 2
-    done
-    
-    if [ $ssh_ready -eq 0 ]; then
-        log_msg "ERROR: SSH did not become ready after 2 minutes. Alpine installation may have failed."
-        exit 1
-    fi
-    
-    log_msg "✓ AlpineVM created and ready for deployment"
+# Determine lib directory location
+if [ "$(basename "$SCRIPT_DIR")" = "trustnet" ]; then
+    # One-liner install: ~/trustnet/lib/
+    LIB_DIR="${SCRIPT_DIR}/lib"
 else
-    log_msg "ERROR: VM lifecycle functions not available (check lib modules)"
+    # Development/repo: ~/GitProjects/TrustNet/trustnet-wip/tools/lib/
+    LIB_DIR="${SCRIPT_DIR}/lib"
+fi
+
+# Verify lib directory exists
+if [ ! -d "$LIB_DIR" ]; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: Module directory not found: $LIB_DIR" >&2
     exit 1
 fi
 
-################################################################################
-# Step 3: iOS Integration Setup (v1.1.0 NEW)
-################################################################################
+# Core utilities
+source "${LIB_DIR}/common.sh"
 
-log_msg ""
-log_msg "Step 2/3: Installing iOS QR integration layer..."
-log_msg ""
+# Cache and download management
+source "${LIB_DIR}/cache-manager.sh"
 
-# Create API directory structure
-API_DIR="$VM_DIR/api"
-WEB_DIR="$VM_DIR/web"
-mkdir -p "$API_DIR" "$WEB_DIR/templates" "$WEB_DIR/static"
+# VM lifecycle
+source "${LIB_DIR}/vm-lifecycle.sh"
 
-log_msg "Installing Python FastAPI dependencies..."
+# VM bootstrap and configuration
+source "${LIB_DIR}/vm-bootstrap.sh"
 
-# Copy requirements.txt from repo if available
-REQUIREMENTS_SOURCE="$VERSION_DIR/setup-requirements.txt"
+# Tool installers
+source "${LIB_DIR}/install-caddy.sh"
+source "${LIB_DIR}/install-cosmos-sdk.sh"
+source "${LIB_DIR}/install-certificates.sh"
 
-if [ -f "$REQUIREMENTS_SOURCE" ]; then
-    log_msg "Copying requirements.txt from repository..."
-    cp "$REQUIREMENTS_SOURCE" "$API_DIR/requirements.txt"
-else
-    # Fallback: create requirements inline
-    log_msg "Creating requirements.txt..."
-    cat > "$API_DIR/requirements.txt" << 'REQUIREMENTS_EOF'
-fastapi>=0.95.0
-uvicorn[standard]>=0.21.0
-qrcode[pil]>=7.4.0
-Pillow>=9.0.0
-python-multipart>=0.0.5
-REQUIREMENTS_EOF
-fi
-
-log_msg "FastAPI requirements: $(awk '/^[^#]/ && NF' $API_DIR/requirements.txt | wc -l) packages"
+# UI/Documentation
+source "${LIB_DIR}/setup-motd.sh"
 
 ################################################################################
-# Step 4: SCP iOS v1.1.0 Components to VM
+# Helper Functions
 ################################################################################
 
-log_msg ""
-log_msg "Step 3/3: Deploying iOS v1.1.0 setup components via SCP..."
-log_msg ""
-
-# Create directories on VM
-ssh -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" "mkdir -p /opt/trustnet/api /opt/trustnet/web/templates" || {
-    log_msg "WARNING: Failed to create directories on VM via SSH"
-}
-
-# Create setup.py (v1.1.0 iOS API) locally first
-SETUP_API_HOST="$API_DIR/setup.py"
-if [ ! -f "$SETUP_API_HOST" ]; then
-    log_msg "Creating setup.py (v1.1.0 iOS integration API)..."
-    cat > "$SETUP_API_HOST" << 'SETUP_PY_EOF'
-#!/usr/bin/env python3
-"""
-TrustNet v1.1.0 Setup API
-iOS QR Code Integration & First-Setup UI
-"""
-
-import json
-import socket
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
-import qrcode
-from io import BytesIO
-import base64
-
-app = FastAPI(title="TrustNet Setup", version="1.1.0")
-
-@app.get("/api/setup/info")
-async def get_setup_info():
-    """Get node setup info for iOS app"""
-    return {
-        "version": "1.1.0",
-        "node": socket.gethostname(),
-        "status": "ready"
-    }
-
-@app.get("/api/setup/qr-code")
-async def get_qr_code():
-    """Generate QR code for iOS app discovery"""
-    qr = qrcode.QRCode()
-    qr.add_data(f"trustnet://{socket.getfqdn()}")
-    qr.make()
-    img = qr.make_image()
-    buf = BytesIO()
-    img.save(buf, format='PNG')
-    return {"qr": base64.b64encode(buf.getvalue()).decode()}
-
-@app.post("/api/setup/verify-pin")
-async def verify_pin(pin: str):
-    """Verify PIN for iOS setup"""
-    if len(pin) == 6 and pin.isdigit():
-        return {"verified": True, "token": "setup-token-v1"}
-    raise HTTPException(status_code=400, detail="Invalid PIN")
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8001)
-SETUP_PY_EOF
-    chmod +x "$SETUP_API_HOST"
-fi
-
-# Create first-setup.html (v1.1.0 Setup UI) locally
-FIRST_SETUP_HTML="$WEB_DIR/templates/first-setup.html"
-if [ ! -f "$FIRST_SETUP_HTML" ]; then
-    log_msg "Creating first-setup.html (v1.1.0 iOS Setup UI)..."
-    cat > "$FIRST_SETUP_HTML" << 'SETUP_HTML_EOF'
-<!DOCTYPE html>
-<html>
-<head>
-    <title>TrustNet Node Setup</title>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <style>
-        body { font-family: system-ui; margin: 0; padding: 20px; background: #f5f5f5; }
-        .container { max-width: 500px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; }
-        h1 { color: #333; text-align: center; }
-        .qr-code { text-align: center; margin: 20px 0; }
-        .qr-code img { max-width: 100%; }
-        .pin-section { margin: 20px 0; }
-        input[type="text"] { width: 100%; padding: 10px; font-size: 16px; }
-        button { width: 100%; padding: 10px; margin-top: 10px; background: #007AFF; color: white; border: none; border-radius: 4px; }
-        .status { text-align: center; color: #666; margin-top: 20px; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>🔐 TrustNet Setup</h1>
-        <p style="text-align: center; color: #666;">Scan QR code with iOS app to connect</p>
-        <div class="qr-code" id="qr"></div>
-        <div class="pin-section">
-            <label>Enter verification PIN:</label>
-            <input type="text" id="pin" placeholder="000000" maxlength="6">
-            <button onclick="verifyPin()">Verify</button>
-        </div>
-        <div class="status" id="status">Loading...</div>
-    </div>
-    <script>
-        async function loadQRCode() {
-            try {
-                const resp = await fetch('/api/setup/qr-code');
-                const data = await resp.json();
-                document.getElementById('qr').innerHTML = '<img src="data:image/png;base64,' + data.qr + '">';
-                document.getElementById('status').textContent = 'Ready to scan';
-            } catch(e) {
-                document.getElementById('status').textContent = 'Error loading QR code';
-            }
-        }
-        async function verifyPin() {
-            const pin = document.getElementById('pin').value;
-            try {
-                const resp = await fetch('/api/setup/verify-pin', {method: 'POST', body: JSON.stringify({pin}), headers: {'Content-Type': 'application/json'}});
-                if(resp.ok) document.getElementById('status').textContent = '✅ PIN verified!';
-                else document.getElementById('status').textContent = 'Invalid PIN';
-            } catch(e) {
-                document.getElementById('status').textContent = 'Error verifying PIN';
-            }
-        }
-        loadQRCode();
-    </script>
-</body>
-</html>
-SETUP_HTML_EOF
-fi
-
-# SCP setup.py to VM
-log_msg "Deploying setup.py to VM..."
-scp -P "$VM_SSH_PORT" "$SETUP_API_HOST" "$VM_USERNAME@$VM_HOSTNAME:/opt/trustnet/api/setup.py" 2>/dev/null || \
-    log_msg "WARNING: SCP failed for setup.py"
-
-log_msg "✅ setup.py deployed"
-
-# SCP first-setup.html to VM
-log_msg "Deploying first-setup.html to VM..."
-scp -P "$VM_SSH_PORT" "$FIRST_SETUP_HTML" "$VM_USERNAME@$VM_HOSTNAME:/opt/trustnet/web/templates/first-setup.html" 2>/dev/null || \
-    log_msg "WARNING: SCP failed for first-setup.html"
-
-log_msg "✅ first-setup.html deployed"
-
-################################################################################
-# Step 6: Create Caddy Configuration for Setup UI
-################################################################################
-
-CADDY_CONFIG="$VM_DIR/Caddyfile.setup"
-cat > "$CADDY_CONFIG" << 'CADDY_EOF'
-# TrustNet Setup UI Route (v1.1.0)
-# Adds setup endpoints to existing Caddy config
-
-(setup-route) {
-    # Setup UI
-    route /setup* {
-        handle_path /setup {
-            file_server {
-                root /opt/trustnet/web/templates
-                index first-setup.html
-            }
-        }
-        
-        # Setup API endpoints
-        route /api/setup/* {
-            reverse_proxy localhost:8001
-        }
-    }
-}
-
-# Import in main Caddyfile:
-# import /opt/trustnet/Caddyfile.setup
-CADDY_EOF
-
-log_msg "✅ Caddy setup configuration created"
-
-################################################################################
-# Step 7: Create Installation Script
-################################################################################
-
-INSTALL_DEPS_SCRIPT="$VM_DIR/install-v1.1.0-components.sh"
-cat > "$INSTALL_DEPS_SCRIPT" << 'DEPS_EOF'
-#!/bin/bash
-# Install v1.1.0 iOS integration components
-
-set -e
-
-log_msg() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $@"
-}
-
-log_msg "Installing v1.1.0 iOS QR Integration..."
-
-# Create directories
-mkdir -p /opt/trustnet/api /opt/trustnet/web/{templates,static}
-
-# Install Python packages (if running in Alpine)
-if command -v apk &> /dev/null; then
-    log_msg "Installing Alpine packages..."
-    doas apk add --no-cache \
-        python3 \
-        python3-dev \
-        py3-pip \
-        libjpeg \
-        zlib-dev \
-        gcc \
-        musl-dev
+offer_configuration_choice() {
+    if [ "$AUTO_MODE" = "true" ]; then
+        log_info "Auto mode: Using recommended configuration"
+        return 0
+    fi
     
-    log_msg "Installing Python packages..."
-    doas pip install --no-cache -r /tmp/requirements.txt
-elif command -v apt &> /dev/null; then
-    log_msg "Installing Debian packages..."
-    sudo apt-get update
-    sudo apt-get install -y \
-        python3 \
-        python3-pip \
-        python3-dev \
-        libjpeg-dev \
-        zlib1g-dev
+    log ""
+    log "TrustNet Node Configuration"
+    log "━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    log ""
+    log "Recommended Settings:"
+    log "  Memory: ${VM_MEMORY}"
+    log "  CPUs: ${VM_CPUS}"
+    log "  System Disk: ${SYSTEM_DISK_SIZE}"
+    log "  Cache Disk: ${CACHE_DISK_SIZE}"
+    log "  Data Disk: ${DATA_DISK_SIZE}"
+    log ""
     
-    log_msg "Installing Python packages..."
-    sudo pip3 install -r /tmp/requirements.txt
-else
-    log_msg "Warning: Unknown package manager. Assuming Python is installed."
-fi
-
-log_msg "✅ v1.1.0 components installed"
-DEPS_EOF
-
-chmod +x "$INSTALL_DEPS_SCRIPT"
-log_msg "✅ Installation script created"
-
-################################################################################
-# Step 8: Deploy All Files to VM and Start Services
-################################################################################
-
-log_msg ""
-log_msg "Deploying v1.1.0 components to VM..."
-log_msg ""
-
-# Deploy setup.py
-log_msg "Deploying setup.py to VM..."
-ssh -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" "mkdir -p /opt/trustnet/api /opt/trustnet/web/templates" || {
-    log_msg "WARNING: SSH connection failed. Files may not be deployed."
-    log_msg "You can manually deploy with:"
-    log_msg "  scp -P $VM_SSH_PORT '$API_DIR/setup.py' $VM_USERNAME@$VM_HOSTNAME:/opt/trustnet/api/"
+    read -p "Use recommended settings? [Y/n] " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+        log_success "Using recommended configuration"
+    else
+        log_info "Custom configuration not yet supported - using recommended"
+    fi
 }
 
-scp -P "$VM_SSH_PORT" "$API_DIR/setup.py" "$VM_USERNAME@$VM_HOSTNAME:/opt/trustnet/api/" 2>/dev/null || \
-    log_msg "WARNING: Failed to deploy setup.py"
-
-log_msg "✅ setup.py deployed"
-
-# Deploy first-setup.html
-log_msg "Deploying first-setup.html to VM..."
-scp -P "$VM_SSH_PORT" "$WEB_DIR/templates/first-setup.html" "$VM_USERNAME@$VM_HOSTNAME:/opt/trustnet/web/templates/" 2>/dev/null || \
-    log_msg "WARNING: Failed to deploy first-setup.html"
-
-log_msg "✅ first-setup.html deployed"
-
-# Deploy requirements.txt
-log_msg "Installing FastAPI on VM..."
-REQ_FILE="$API_DIR/requirements.txt"
-scp -P "$VM_SSH_PORT" "$REQ_FILE" "$VM_USERNAME@$VM_HOSTNAME:/tmp/requirements.txt" 2>/dev/null || \
-    log_msg "WARNING: Failed to deploy requirements.txt"
-
-# Install dependencies on VM
-ssh -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" << 'SSH_INSTALL_EOF'
+generate_start_script() {
+    log "Generating TrustNet Node start script..."
+    
+    local uefi_fw=$(find_uefi_firmware)
+    
+    cat > "${VM_DIR}/start-trustnet.sh" << EOF
 #!/bin/bash
-set -e
+# Always use the actual VM directory, not symlink location
+VM_DIR="\${HOME}/vms/trustnet"
+SYSTEM_DISK="${SYSTEM_DISK}"
+CACHE_DISK="${CACHE_DISK}"
+DATA_DISK="${DATA_DISK}"
+UEFI_FW="${uefi_fw}"
+VM_MEMORY="${VM_MEMORY}"
+VM_CPUS="${VM_CPUS}"
+SSH_PORT="${VM_SSH_PORT}"
+PID_FILE="\${VM_DIR}/trustnet.pid"
 
-if command -v apk &> /dev/null; then
-    doas apk add --no-cache python3 python3-dev py3-pip libjpeg zlib-dev gcc musl-dev 2>/dev/null || true
-    doas pip install --no-cache -r /tmp/requirements.txt 2>/dev/null || true
-elif command -v apt &> /dev/null; then
-    sudo apt-get update 2>/dev/null || true
-    sudo apt-get install -y python3-pip python3-dev libjpeg-dev zlib1g-dev 2>/dev/null || true
-    sudo pip3 install -r /tmp/requirements.txt 2>/dev/null || true
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+if [ -f "\$PID_FILE" ] && sudo kill -0 \$(cat "\$PID_FILE") 2>/dev/null; then
+    echo -e "\${YELLOW}TrustNet Node is already running\${NC}"
+    echo "  Connect: ssh trustnet"
+    exit 0
 fi
-SSH_INSTALL_EOF
-log_msg "✅ FastAPI installed on VM"
 
-# Create systemd service to run setup.py
-log_msg "Creating systemd service for Setup API..."
-ssh -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" << 'SSH_SERVICE_EOF'
-#!/bin/bash
-# Create systemd service for Setup API
-cat > /tmp/trustnet-setup.service << 'SERVICE_UNIT'
-[Unit]
-Description=TrustNet v1.1.0 Setup API
-After=network.target
-Wants=network-online.target
-
-[Service]
-Type=simple
-user=_trustnet
-WorkingDirectory=/opt/trustnet/api
-ExecStart=/usr/bin/python3 /opt/trustnet/api/setup.py
-Restart=always
-RestartSec=10
-StandardOutput=journal
-StandardError=journal
-Environment="PYTHONUNBUFFERED=1"
-
-[Install]
-WantedBy=multi-user.target
-SERVICE_UNIT
-
-# Install service
-if command -v doas &> /dev/null; then
-    doas cp /tmp/trustnet-setup.service /etc/init.d/trustnet-setup.service 2>/dev/null || true
-    doas rc-service trustnet-setup start 2>/dev/null || true
-elif command -v sudo &> /dev/null; then
-    sudo cp /tmp/trustnet-setup.service /etc/systemd/system/trustnet-setup.service 2>/dev/null || true
-    sudo systemctl daemon-reload 2>/dev/null || true
-    sudo systemctl enable trustnet-setup 2>/dev/null || true
-    sudo systemctl start trustnet-setup 2>/dev/null || true
+# Add /etc/hosts entry for trustnet.local
+if ! grep -q "trustnet.local" /etc/hosts 2>/dev/null; then
+    echo "127.0.0.1 trustnet.local" | sudo tee -a /etc/hosts > /dev/null
 fi
-SSH_SERVICE_EOF
 
-log_msg "✅ Setup API service created and started"
+echo -e "\${GREEN}Starting TrustNet Node...\${NC}"
 
-# Deploy Caddy configuration
-log_msg "Updating Caddy configuration..."
-scp -P "$VM_SSH_PORT" "$CADDY_CONFIG" "$VM_USERNAME@$VM_HOSTNAME:/tmp/Caddyfile.setup" 2>/dev/null || \
-    log_msg "WARNING: Failed to deploy Caddy config"
-
-# Merge Caddy config  
-ssh -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" << 'SSH_CADDY_EOF'
-#!/bin/bash
-# Merge Caddy setup config if not already imported
-CADDY_FILE="/etc/caddy/Caddyfile"
-
-if ! grep -q "import /etc/caddy/Caddyfile.setup" "$CADDY_FILE" 2>/dev/null; then
-    if command -v doas &> /dev/null; then
-        doas cp /tmp/Caddyfile.setup /etc/caddy/Caddyfile.setup 2>/dev/null || true
-        echo "import /etc/caddy/Caddyfile.setup" | doas tee -a "$CADDY_FILE" 2>/dev/null || true
-        doas rc-service caddy reload 2>/dev/null || true
-    elif command -v sudo &> /dev/null; then
-        sudo cp /tmp/Caddyfile.setup /etc/caddy/Caddyfile.setup 2>/dev/null || true
-        echo "import /etc/caddy/Caddyfile.setup" | sudo tee -a "$CADDY_FILE" 2>/dev/null || true
-        sudo systemctl reload caddy 2>/dev/null || true
+# Detect architecture and set QEMU command
+HOST_ARCH=\$(uname -m)
+if [ "\$HOST_ARCH" = "x86_64" ] && [ -e /dev/kvm ] && [ -r /dev/kvm ] && [ -w /dev/kvm ]; then
+    # x86_64 with KVM: Native virtualization (fast!)
+    QEMU_ACCEL="-accel kvm"
+    QEMU_SYSTEM="qemu-system-x86_64"
+    QEMU_MACHINE="-M q35"
+    QEMU_CPU="-cpu host"
+    QEMU_BIOS=""  # Use default BIOS
+elif [ "\$HOST_ARCH" = "aarch64" ] && [ -e /dev/kvm ] && [ -r /dev/kvm ] && [ -w /dev/kvm ]; then
+    # ARM64 with KVM: Native virtualization
+    QEMU_ACCEL="-accel kvm"
+    QEMU_SYSTEM="qemu-system-aarch64"
+    QEMU_MACHINE="-M virt"
+    QEMU_CPU="-cpu host"
+    QEMU_BIOS="-bios \${UEFI_FW}"
+else
+    # Fallback: TCG emulation (slow)
+    QEMU_ACCEL="-accel tcg"
+    if [ "\$HOST_ARCH" = "x86_64" ]; then
+        QEMU_SYSTEM="qemu-system-x86_64"
+        QEMU_MACHINE="-M q35"
+        QEMU_CPU="-cpu qemu64"
+        QEMU_BIOS=""
+    else
+        QEMU_SYSTEM="qemu-system-aarch64"
+        QEMU_MACHINE="-M virt"
+        QEMU_CPU="-cpu cortex-a72"
+        QEMU_BIOS="-bios \${UEFI_FW}"
     fi
 fi
-SSH_CADDY_EOF
 
-log_msg "✅ Caddy configuration updated"
-log_msg ""
+touch "\${PID_FILE}"
+
+sudo \${QEMU_SYSTEM} \\
+    \${QEMU_MACHINE} \${QEMU_ACCEL} \\
+    \${QEMU_CPU} \\
+    -smp \${VM_CPUS} \\
+    -m \${VM_MEMORY} \\
+    \${QEMU_BIOS} \\
+    -drive file="\${SYSTEM_DISK}",if=virtio,format=qcow2 \\
+    -drive file="\${CACHE_DISK}",if=virtio,format=qcow2 \\
+    -drive file="\${DATA_DISK}",if=virtio,format=qcow2 \\
+    -device virtio-net-pci,netdev=net0 \\
+    -netdev user,id=net0,hostfwd=tcp::\${SSH_PORT}-:22,hostfwd=tcp::443-:443 \\
+    -display none \\
+    -daemonize \\
+    -pidfile "\${PID_FILE}"
+
+echo "✓ TrustNet Node started"
+echo "  SSH: ssh trustnet"
+echo "  Web UI: https://trustnet.local"
+EOF
+
+    chmod +x "${VM_DIR}/start-trustnet.sh"
+    
+    # Create stop script
+    cat > "${VM_DIR}/stop-trustnet.sh" << 'EOF'
+#!/bin/bash
+VM_DIR="${HOME}/vms/trustnet"
+PID_FILE="${VM_DIR}/trustnet.pid"
+
+if [ ! -f "$PID_FILE" ]; then
+    echo "TrustNet Node is not running"
+    exit 0
+fi
+
+PID=$(cat "$PID_FILE")
+if sudo kill -0 "$PID" 2>/dev/null; then
+    echo "Stopping TrustNet Node..."
+    sudo kill "$PID"
+    rm -f "$PID_FILE"
+    echo "✓ TrustNet Node stopped"
+else
+    echo "TrustNet Node process not found"
+    rm -f "$PID_FILE"
+fi
+EOF
+
+    chmod +x "${VM_DIR}/stop-trustnet.sh"
+    
+    log_success "Start/stop scripts created"
+}
+
+configure_ssh_on_host() {
+    log "Configuring SSH on Host"
+    
+    local ssh_config="${HOME}/.ssh/config"
+    
+    mkdir -p "${HOME}/.ssh"
+    chmod 700 "${HOME}/.ssh"
+    
+    # Remove old TrustNet entries if they exist
+    if [ -f "$ssh_config" ]; then
+        awk '/^# TrustNet Node/,/^$/{next} /^Host trustnet$/,/^$/{next} {print}' "$ssh_config" > "${ssh_config}.tmp"
+        mv "${ssh_config}.tmp" "$ssh_config"
+    else
+        touch "$ssh_config"
+    fi
+    
+    chmod 600 "$ssh_config"
+    
+    # Add fresh SSH config entry
+    cat >> "$ssh_config" << EOF
+
+# TrustNet Node
+Host trustnet
+    HostName localhost
+    Port ${VM_SSH_PORT}
+    User ${VM_USERNAME}
+    IdentityFile ${VM_SSH_PRIVATE_KEY}
+    IdentitiesOnly yes
+    ForwardAgent yes
+    StrictHostKeyChecking no
+    UserKnownHostsFile /dev/null
+    LogLevel ERROR
+
+EOF
+
+    log_success "SSH config updated (ssh trustnet)"
+}
+
+save_credentials() {
+    log "Saving Credentials"
+    
+    cat > "${VM_DIR}/credentials.txt" << EOF
+╔══════════════════════════════════════════════════════════════════════╗
+║                                                                      ║
+║                    TrustNet Node Access Info                         ║
+║                                                                      ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+Installation Date: $(date)
+
+SSH Access:
+  Command: ssh trustnet
+  User: ${VM_USERNAME}
+  Port: ${VM_SSH_PORT}
+  
+Web UI:
+  URL: https://trustnet.local
+  Purpose: Identity management, reputation dashboard, transactions
+  
+Blockchain Network:
+  Network: TrustNet Hub
+  RPC: https://rpc.trustnet.network:26657
+  API: https://api.trustnet.network:1317
+  
+Node Configuration:
+  Config: /home/${VM_USERNAME}/trustnet/config/config.toml
+  Data: /home/${VM_USERNAME}/trustnet/data
+  Keys: /home/${VM_USERNAME}/trustnet/keys
+  
+VM Management:
+  Start: ${VM_DIR}/start-trustnet.sh
+  Stop: ${VM_DIR}/stop-trustnet.sh
+  Directory: ${VM_DIR}
+
+Next Steps:
+  1. Access web UI: https://trustnet.local
+  2. Register your identity (creates cryptographic keypair)
+  3. Get verified by community members
+  4. Start building reputation!
+
+Documentation:
+  White Paper: https://trustnet.network/whitepaper
+  CLI Guide: https://docs.trustnet.network/cli
+  API Reference: https://docs.trustnet.network/api
+
+╔══════════════════════════════════════════════════════════════════════╗
+║  Your identity keys are stored in /home/${VM_USERNAME}/trustnet/keys         ║
+║  BACK THEM UP! Loss of keys = loss of identity and reputation       ║
+╚══════════════════════════════════════════════════════════════════════╝
+EOF
+
+    log_success "Credentials saved to ${VM_DIR}/credentials.txt"
+}
+
+print_completion_message() {
+    log ""
+    log "╔══════════════════════════════════════════════════════════════════════╗"
+    log "║                                                                      ║"
+    log "║               🎉 TrustNet Node Installation Complete! 🎉             ║"
+    log "║                                                                      ║"
+    log "╚══════════════════════════════════════════════════════════════════════╝"
+    log ""
+    log "✅ VM created and configured"
+    log "✅ Cosmos SDK and Ignite CLI installed"
+    log "✅ TrustNet blockchain client configured"
+    log "✅ Caddy web server with HTTPS"
+    log "✅ SSL certificates installed"
+    log ""
+    log "Access your node:"
+    log "  SSH: ssh trustnet"
+    log "  Web UI: https://trustnet.local"
+    log ""
+    log "Credentials saved to:"
+    log "  ${VM_DIR}/credentials.txt"
+    log ""
+    log "Start your node:"
+    log "  ${VM_DIR}/start-trustnet.sh"
+    log ""
+    log "Next steps:"
+    log "  1. Visit https://trustnet.local"
+    log "  2. Register your identity"
+    log "  3. Start building reputation!"
+    log ""
+}
 
 ################################################################################
-# Step 9: Summary and Next Steps
+# Main Installation Flow
 ################################################################################
 
-log_msg ""
-log_msg "╔══════════════════════════════════════════════════════════╗"
-log_msg "║  ✅ TrustNet v1.1.0 Setup Complete                       ║"
-log_msg "╚══════════════════════════════════════════════════════════╝"
-log_msg ""
-log_msg "Installation Summary:"
-log_msg "  Version: v1.1.0 (iOS QR Integration)"
-log_msg "  Base: v1.0.0 (fully preserved)"
-log_msg "  VM Location: $VM_DIR"
-log_msg "  API Port: 8001"
-log_msg "  Setup UI: https://<your-node-ipv6>:1317/setup"
-log_msg ""
-log_msg "New Features (v1.1.0):"
-log_msg "  ✨ iOS QR code generation (/api/setup/qr-code)"
-log_msg "  ✨ PIN verification system (/api/setup/verify-pin)"
-log_msg "  ✨ First-time setup web UI (responsive mobile UI)"
-log_msg "  ✨ Node discovery for iOS app"
-log_msg "  ✨ Certificate fingerprinting for security"
-log_msg ""
-log_msg "Next Steps:"
-log_msg "  1. Verify v1.1.0 installation:"
-log_msg "     ssh $VM_USERNAME@$VM_HOSTNAME 'python3 /opt/trustnet/api/setup.py --version'"
-log_msg ""
-log_msg "  2. Access setup UI via:"
-log_msg "     https://<your-node-ipv6>/setup"
-log_msg ""
-log_msg "  3. Test QR generation:"
-log_msg "     curl -s https://<your-node-ipv6>/api/setup/qr-code | jq"
-log_msg ""
-log_msg "  4. iOS app can now:"
-log_msg "     - Scan QR code from setup UI"
-log_msg "     - Auto-connect to node"
-log_msg "     - Verify certificate via fingerprint"
-log_msg "     - Complete registration"
-log_msg ""
-log_msg "Rollback to v1.0.0 (if needed):"
-log_msg "  ./setup-trustnet-node.sh --rollback"
-log_msg ""
-log_msg "Installation log: $LOG_FILE"
-log_msg ""
-log_msg "Happy registering! 🎉"
+main() {
+    clear
+    log ""
+    log "═══════════════════════════════════════════════════════════════"
+    log "    TrustNet Node Installer v1.0.0"
+    log "    Blockchain-Based Trust Network (Cosmos SDK)"
+    log "═══════════════════════════════════════════════════════════════"
+    log ""
+    log_info "Architecture: ${ALPINE_ARCH} $([ "$ALPINE_ARCH" = "x86_64" ] && echo "(fast KVM)" || echo "(for cloud pods)")"
+    log ""
+    
+    # Pre-flight checks
+    check_dependencies
+    offer_configuration_choice
+    
+    # Generate secure passwords
+    log_info "Generating secure passwords..."
+    VM_ROOT_PASSWORD=$(generate_secure_password)
+    WARDEN_OS_PASSWORD=$(generate_secure_password)
+    
+    export VM_ROOT_PASSWORD WARDEN_OS_PASSWORD
+    
+    # Create VM directory
+    mkdir -p "$VM_DIR"
+    cd "$VM_DIR"
+    
+    # Setup for VM creation
+    ensure_qemu
+    setup_ssh_keys
+    
+    # Phase 1: Download and cache Alpine
+    download_alpine
+    
+    # Phase 2: Create and configure VM
+    create_disks
+    start_vm_for_install
+    
+    # (Alpine installer runs automatically here via alpine-install.exp)
+    
+    # Phase 3: Generate start script (needed before configure_installed_vm)
+    generate_start_script
+    
+    # Phase 4: Bootstrap Alpine OS (after installation completes)
+    # (configure_installed_vm handles user creation, disks, and SSH)
+    configure_installed_vm
+    
+    # Phase 5: Install software
+    install_caddy_via_ssh
+    install_blockchain_stack
+    
+    # Phase 6: Configure SSL certificates
+    install_certificates_on_host
+    
+    # Phase 7: Configure MOTD and final touches
+    setup_motd_via_ssh
+    
+    # Phase 8: Configure host SSH and save credentials
+    configure_ssh_on_host
+    save_credentials
+    
+    # Completion
+    print_completion_message
+}
 
-exit 0
+# Run main installation
+main "$@"
