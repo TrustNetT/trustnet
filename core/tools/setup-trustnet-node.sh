@@ -292,13 +292,13 @@ log_msg "Installing Python FastAPI..."
 
 # Create requirements file
 cat > "$API_DIR/requirements.txt" << 'EOF'
-fastapi==0.95.1
-uvicorn[standard]==0.21.3
-qrcode[pil]==7.4.2
-Pillow==9.5.0
-python-multipart==0.0.6
-pydantic==1.10.7
-pydantic-settings==2.0.1
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+qrcode[pil]>=7.4.0
+Pillow>=10.0.0
+python-multipart>=0.0.6
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
 EOF
 
 log_msg "FastAPI requirements: $(cat $API_DIR/requirements.txt | wc -l) packages"
@@ -999,7 +999,8 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p "$VM_SSH_PORT
 
 if command -v apk &> /dev/null; then
     # Alpine Linux - use virtual environment to bypass PEP 668
-    doas apk add --no-cache python3 python3-dev py3-pip py3-venv libjpeg zlib-dev gcc musl-dev
+    # Note: py3-venv is built-in to Python 3, no need to install
+    doas apk add --no-cache python3 python3-dev py3-pip libjpeg zlib-dev gcc musl-dev
     
     # Create virtual environment for setup API
     doas python3 -m venv /opt/trustnet/venv
