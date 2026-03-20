@@ -12,7 +12,7 @@ RAW_URL="https://raw.githubusercontent.com/TrustNetT/trustnet"
 REPO_DIR="$HOME/trustnet"
 BRANCH="${TRUSTNET_BRANCH:-main}"
 
-# Setup logging
+# Setup logging (persistent internal state)
 LOG_DIR="${HOME}/.trustnet/logs"
 LOG_FILE="${LOG_DIR}/install-$(date +%Y%m%d-%H%M%S).log"
 mkdir -p "$LOG_DIR"

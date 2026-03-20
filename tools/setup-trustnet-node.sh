@@ -25,7 +25,7 @@
 
 set -euo pipefail
 
-# Logging configuration
+# Logging configuration (persistent internal state)
 LOG_DIR="${HOME}/.trustnet/logs"
 if [ -n "${TRUSTNET_LOG_FILE:-}" ]; then
     LOG_FILE="$TRUSTNET_LOG_FILE"
