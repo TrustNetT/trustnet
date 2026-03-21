@@ -1,0 +1,98 @@
+# Web UI - serves static content
+:443 trustnet.local {
+    root * /var/www/trustnet
+    file_server
+    tls /etc/caddy/certs/trustnet.local.crt /etc/caddy/certs/trustnet.local.key
+}
+
+# RPC endpoint - smart routing with content negotiation
+rpc.trustnet.local:443 {
+    tls /etc/caddy/certs/trustnet.local.crt /etc/caddy/certs/trustnet.local.key
+    
+    # Handler for root path (/) with content negotiation
+    handle / {
+        # Detect if request is from a browser (by User-Agent or Accept header)
+        @browser_request {
+            header User-Agent *Mozilla*
+        }
+        @browser_request2 {
+            header User-Agent *Chrome*
+        }
+        @browser_request3 {
+            header User-Agent *Safari*
+        }
+        @browser_request4 {
+            header User-Agent *Firefox*
+        }
+        @browser_request5 {
+            header Accept *text/html*
+        }
+        
+        # If browser detected, serve HTML status page
+        handle @browser_request, @browser_request2, @browser_request3, @browser_request4, @browser_request5 {
+            file_server {
+                root /var/www/caddy-pages
+            }
+        }
+        
+        # Otherwise, pass JSON response from backend
+        handle {
+            reverse_proxy http://127.0.0.1:26657 {
+                transparent
+            }
+        }
+    }
+    
+    # All other RPC paths go directly to backend (API clients)
+    handle /* {
+        reverse_proxy http://127.0.0.1:26657 {
+            transparent
+        }
+    }
+}
+
+# REST API endpoint - smart routing with content negotiation
+api.trustnet.local:443 {
+    tls /etc/caddy/certs/trustnet.local.crt /etc/caddy/certs/trustnet.local.key
+    
+    # Handler for root path (/) with content negotiation
+    handle / {
+        # Detect if request is from a browser (by User-Agent or Accept header)
+        @browser_request {
+            header User-Agent *Mozilla*
+        }
+        @browser_request2 {
+            header User-Agent *Chrome*
+        }
+        @browser_request3 {
+            header User-Agent *Safari*
+        }
+        @browser_request4 {
+            header User-Agent *Firefox*
+        }
+        @browser_request5 {
+            header Accept *text/html*
+        }
+        
+        # If browser detected, serve HTML status page
+        handle @browser_request, @browser_request2, @browser_request3, @browser_request4, @browser_request5 {
+            file_server {
+                root /var/www/caddy-pages
+            }
+        }
+        
+        # Otherwise, return API info JSON
+        handle {
+            respond `{"api":"TrustNet REST API","status":"online","base_url":"https://api.trustnet.local","version":"v1","endpoints":["cosmos/base/tendermint/v1beta1/blocks/latest","cosmos/bank/v1beta1/balances/{address}","cosmos/staking/v1beta1/validators","cosmos/tx/v1beta1/txs"]}` 200 {
+                header Content-Type application/json
+            }
+        }
+    }
+    
+    # All API paths go directly to backend
+    handle /* {
+        reverse_proxy http://127.0.0.1:1317 {
+            transparent
+        }
+    }
+}

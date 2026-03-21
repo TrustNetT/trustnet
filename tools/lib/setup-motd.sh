@@ -19,46 +19,47 @@ setup_motd_via_ssh() {
         -p "$VM_SSH_PORT" \
         root@localhost 'bash -s' << 'MOTD_SCRIPT'
 cat > /etc/motd << 'MOTD_EOF'
-╔═══════════════════════════════════════════════════════════╗
-║                                                           ║
-║          🔗  TrustNet Node - Blockchain Platform          ║
-║                                                           ║
-╚═══════════════════════════════════════════════════════════╝
+╔════════════════════════════════════════════════════════════╗
+║                                                            ║
+║         🔗  TrustNet Node - Blockchain Platform           ║
+║                                                            ║
+╚════════════════════════════════════════════════════════════╝
 
 Welcome to your TrustNet blockchain node!
 
 📦 Installed Tools:
-  • Go 1.25.6       - Programming language
+  • Go 1.26.1       - Blockchain development language
   • Ignite CLI      - Cosmos SDK scaffolding
   • Git, Make, GCC  - Build tools
-  • Caddy           - HTTPS web server
+  • Caddy           - HTTPS reverse proxy & web server
 
 🌐 TrustNet Services:
   Web UI:    https://trustnet.local
-  Node RPC:  https://trustnet.local:26657
-  API:       https://trustnet.local:1317
+  RPC:       https://rpc.trustnet.local (reverse proxy :26657)
+  API:       https://api.trustnet.local (reverse proxy :1317)
   
   SSH Access: ssh trustnet
 
 📁 Storage:
-  System:    /         (20 GB)
-  Cache:     /var/cache/trustnet-build (5 GB)
-  Data:      /var/lib/trustnet (30 GB) - Blockchain data
+  System:    /              (20 GB)
+  Cache:     /var/cache     (5 GB)
+  Data:      /var/lib/trustnet (30 GB)
 
 🔒 Security:
   • SSH: Key-based authentication only
   • HTTPS: Self-signed certificate (365 days)
-  • User: warden (passwordless sudo/doas)
+  • User: warden (local account, passwordless sudo)
 
 📖 Configuration:
   Node config:  ~/trustnet/config/config.toml
-  Credentials:  ~/vms/trustnet/credentials.txt (on host)
+  Caddy config: /etc/caddy/Caddyfile
+  SSL Certs:    /etc/caddy/certs/trustnet.local.*
 
-💡 Quick Start:
-  1. Access Web UI: https://trustnet.local
-  2. Check Caddy:   doas rc-service caddy status
-  3. Start Caddy:   doas rc-service caddy start
-  4. View logs:     doas rc-service caddy log
+💡 Quick Commands:
+  Check Caddy:     sudo rc-service caddy status
+  Restart Caddy:   sudo rc-service caddy restart
+  View Caddy logs: sudo rc-service caddy log
+  Blockchain RPC:  curl -k https://rpc.trustnet.local/status
 
 ═══════════════════════════════════════════════════════════════
 MOTD_EOF

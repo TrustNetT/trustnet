@@ -232,9 +232,10 @@ if [ -f "\$PID_FILE" ] && sudo kill -0 \$(cat "\$PID_FILE") 2>/dev/null; then
     exit 0
 fi
 
-# Add /etc/hosts entry for trustnet.local
+# Add /etc/hosts entries for trustnet.local and subdomains (dual-stack for port forwarding)
 if ! grep -q "trustnet.local" /etc/hosts 2>/dev/null; then
-    echo "127.0.0.1 trustnet.local" | sudo tee -a /etc/hosts > /dev/null
+    echo "127.0.0.1 trustnet.local rpc.trustnet.local api.trustnet.local" | sudo tee -a /etc/hosts > /dev/null
+    echo "::1 trustnet.local rpc.trustnet.local api.trustnet.local" | sudo tee -a /etc/hosts > /dev/null
 fi
 
 echo -e "\${GREEN}Starting TrustNet Node...\${NC}"
@@ -378,14 +379,15 @@ SSH Access:
   User: ${VM_USERNAME}
   Port: ${VM_SSH_PORT}
   
-Web UI:
-  URL: https://trustnet.local
-  Purpose: Identity management, reputation dashboard, transactions
+Web UI & Services:
+  Web UI: https://trustnet.local (identity management & control panel)
+  RPC Endpoint: https://rpc.trustnet.local (blockchain RPC via Caddy reverse proxy)
+  REST API: https://api.trustnet.local (blockchain REST API via Caddy reverse proxy)
   
-Blockchain Network:
-  Network: TrustNet Hub
-  RPC: https://rpc.trustnet.network:26657
-  API: https://api.trustnet.network:1317
+Blockchain Services (via Caddy reverse proxy):
+  RPC: https://rpc.trustnet.local
+  REST API: https://api.trustnet.local
+  P2P: tcp://trustnet.local:26656 (direct)
   
 Node Configuration:
   Config: /home/${VM_USERNAME}/trustnet/config/config.toml
@@ -434,6 +436,8 @@ print_completion_message() {
     log "Access your node:"
     log "  SSH: ssh trustnet"
     log "  Web UI: https://trustnet.local"
+    log "  RPC: https://rpc.trustnet.local"
+    log "  API: https://api.trustnet.local"
     log ""
     log "Credentials saved to:"
     log "  ${VM_DIR}/credentials.txt"
@@ -593,10 +597,6 @@ install_caddy_via_ssh() {
 
 install_certificates_on_host() {
     log "Certificate installation deferred"
-}
-
-setup_motd_via_ssh() {
-    log "MOTD setup deferred"
 }
 
 ################################################################################
