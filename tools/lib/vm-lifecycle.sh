@@ -161,7 +161,7 @@ create_disks() {
     
     # Check if system disk exists and has data
     if [ -f "$SYSTEM_DISK" ]; then
-        local disk_actual=$(qemu-img info "$SYSTEM_DISK" 2>/dev/null | grep "disk size" | awk '{print $3}' | sed 's/[GMK].*//')
+        local disk_actual=$(qemu-img info "$SYSTEM_DISK" 2>/dev/null | grep "disk size" | awk '{print $3}' | sed 's/[GMK].*//' | tr -d '\n')
         
         # If disk has > 100MB, it likely has an installation
         if [ -n "$disk_actual" ] && [ "$disk_actual" != "0" ] && [ "${disk_actual%%.*}" -gt "100" ]; then
