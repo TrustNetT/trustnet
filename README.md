@@ -29,7 +29,7 @@ sudo pacman -S qemu-system-aarch64 edk2-armvirt
 Install with a single command:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jcgarcia/TrustNet/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/TrustNetT/trustnet/main/install.sh | bash
 ```
 
 This will:
@@ -44,8 +44,8 @@ Installation takes approximately **20-30 minutes** depending on system speed and
 
 **Or manually:**
 ```bash
-git clone https://github.com/jcgarcia/TrustNet.git
-cd TrustNet
+git clone https://github.com/TrustNetT/trustnet.git
+cd trustnet
 bash tools/setup-vms.sh --auto
 ```
 

@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # TrustNet Node One-Liner Installer
-# Usage: curl -fsSL https://raw.githubusercontent.com/jcgarcia/TrustNet/main/install.sh | bash
+# Usage: curl -fsSL https://raw.githubusercontent.com/TrustNetT/trustnet/main/install.sh | bash
 # Version: 1.0.0
 #
 
@@ -152,28 +152,9 @@ if is_port_in_use "$VM_SSH_PORT"; then
                 exit 1
             fi
         else
-            # Stop script doesn't exist - fall back to killing QEMU process
-            log "⚠ Stop script not found, force-stopping QEMU process..."
-            pkill -f "qemu-system.*trustnet.qcow2" || true
-            sleep 2
-            
-            # Wait for port to be free (max 15 seconds)
-            log "→ Waiting for port $VM_SSH_PORT to be released..."
-            retry_count=0
-            max_retries=15
-            
-            while is_port_in_use "$VM_SSH_PORT" && [ $retry_count -lt $max_retries ]; do
-                sleep 1
-                retry_count=$((retry_count + 1))
-            done
-            
-            if ! is_port_in_use "$VM_SSH_PORT"; then
-                log "✓ Port $VM_SSH_PORT is now available"
-            else
-                log_error "Could not stop QEMU process. Port $VM_SSH_PORT still in use"
-                log_error "Try: pkill -f qemu-system.*trustnet"
-                exit 1
-            fi
+            log_error "Cannot find stop script: $HOME/vms/trustnet/stop-trustnet.sh"
+            log_error "Please manually stop the existing VM and try again"
+            exit 1
         fi
     else
         log "⚠ Port $VM_SSH_PORT is in use by another service"

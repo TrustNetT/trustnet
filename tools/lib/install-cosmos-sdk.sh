@@ -278,8 +278,8 @@ cat > /tmp/index.html << 'HTML_EOF'
         </div>
         
         <div style="margin-top: 30px; text-align: center; opacity: 0.7; font-size: 0.9em;">
-            <p>TrustNet Core Node v1.0.0 | Cosmos SDK | Tendermint BFT</p>
-            <p style="margin-top: 5px;">Served via Caddy HTTPS with 365-day Self-Signed Certificate</p>
+            <p>TrustNet Node v1.0.0 | Cosmos SDK | Tendermint BFT</p>
+            <p style="margin-top: 5px;">Served via Caddy HTTPS with Let's Encrypt</p>
         </div>
     </div>
     
@@ -314,48 +314,9 @@ EOF
     log_success "Web UI installed at /var/www/trustnet"
 }
 
-build_trustnet_binary() {
-    log "Building TrustNet blockchain binary..."
-    
-    # Clone TrustNet source code to VM
-    log_info "Cloning TrustNet source code..."
-    ssh -i "$VM_SSH_PRIVATE_KEY" -p "$VM_SSH_PORT" \
-        -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-        -o IdentitiesOnly=yes \
-        -o ConnectTimeout=60 -o ServerAliveInterval=30 \
-        ${VM_USERNAME}@localhost << EOF
-# Clone the repository
-git clone https://github.com/TrustNetT/trustnet.git /tmp/trustnet-src
-cd /tmp/trustnet-src
-
-# Build the binary
-source /home/${VM_USERNAME}/.profile
-go mod download
-go build -o /tmp/trustnetd ./cmd/trustnet
-
-# Create bin directory and move binary
-mkdir -p /home/${VM_USERNAME}/trustnet/bin
-mv /tmp/trustnetd /home/${VM_USERNAME}/trustnet/bin/trustnetd
-chmod +x /home/${VM_USERNAME}/trustnet/bin/trustnetd
-
-# Cleanup source
-rm -rf /tmp/trustnet-src
-
-echo "✓ TrustNet binary built successfully"
-EOF
-    
-    if [ $? -eq 0 ]; then
-        log_success "✓ TrustNet binary built and installed at /home/${VM_USERNAME}/trustnet/bin/trustnetd"
-    else
-        log_error "Failed to build TrustNet binary"
-        return 1
-    fi
-}
-
 # Main installation function
 install_blockchain_stack() {
     install_cosmos_sdk
-    build_trustnet_binary
     configure_trustnet_client
     install_trustnet_web_ui
 }
