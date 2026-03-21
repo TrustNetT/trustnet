@@ -544,8 +544,12 @@ distribute_scripts_via_scp() {
 execute_blockchain_installation() {
     log "Executing blockchain installation on VM..."
     
+    # Export variables for remote script access
+    export SSH_KEY="$VM_SSH_PRIVATE_KEY"
+    export VM_SSH_PORT="$VM_SSH_PORT"
+    
     # Create a simple orchestrator script on the VM that sources and runs the installations
-    ssh -p "$VM_SSH_PORT" "${VM_USERNAME}@localhost" "bash" << 'REMOTE_SCRIPT'
+    ssh -p "$VM_SSH_PORT" "${VM_USERNAME}@localhost" "bash" << REMOTE_SCRIPT
 #!/bin/bash
 set -euo pipefail
 
