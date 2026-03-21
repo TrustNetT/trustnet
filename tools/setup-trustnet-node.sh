@@ -524,10 +524,15 @@ distribute_scripts_via_scp() {
     ssh -p "$VM_SSH_PORT" "${VM_USERNAME}@localhost" "mkdir -p /tmp/lib" || return 1
     
     # Copy library scripts from host to VM
+    # Check both locations: one-liner (PROJECT_ROOT/lib) and dev (PROJECT_ROOT/tools/lib)
     local lib_dir="$PROJECT_ROOT/tools/lib"
     if [ ! -d "$lib_dir" ]; then
-        log_error "Library directory not found: $lib_dir"
-        return 1
+        # Try alternative location for one-liner install
+        lib_dir="$PROJECT_ROOT/lib"
+        if [ ! -d "$lib_dir" ]; then
+            log_error "Library directory not found: $PROJECT_ROOT/tools/lib or $PROJECT_ROOT/lib"
+            return 1
+        fi
     fi
     
     # Use scp to copy all .sh files
