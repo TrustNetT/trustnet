@@ -578,13 +578,6 @@ REMOTE_SCRIPT
     log_success "Blockchain installation completed on VM"
 }
 
-configure_installed_vm() {
-    log "Configuring installed VM..."
-    # Wait for VM to boot and SSH to be ready
-    distribute_scripts_via_scp
-    log_success "VM configured"
-}
-
 install_blockchain_stack() {
     log "Installing blockchain stack..."
     execute_blockchain_installation
