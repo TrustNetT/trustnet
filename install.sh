@@ -321,9 +321,31 @@ log "✓ Caddy routing configured"
 cd ..
 rm -rf v1.1.0-components
 
+# ============================================================================
+# PHASE 3: v1.1.0 Enhanced Deployment (NEW)
+# ============================================================================
+# This section complements Phase 2 by calling dedicated deployment scripts
+# for blockchain and API services, ensuring proper initialization and routing
+
+if [ -f "$SCRIPT_DIR/tools/scripts/integrate-v1.1.0.sh" ]; then
+    log ""
+    log "→ Running v1.1.0 enhanced integration..."
+    
+    if bash "$SCRIPT_DIR/tools/scripts/integrate-v1.1.0.sh" --no-test 2>/dev/null; then
+        log "✓ v1.1.0 enhanced integration successful"
+        PHASE3_RESULT=0
+    else
+        log "⚠ v1.1.0 enhanced integration encountered issues (non-blocking)"
+        PHASE3_RESULT=1
+    fi
+else
+    log "ℹ v1.1.0 integration script not found (optional enhancement)"
+    PHASE3_RESULT=1
+fi
+
 log ""
 log "╔══════════════════════════════════════════════════════════╗"
-log "║  ✅ TrustNet v1.1.0 Installation Complete                ║"
+log "║  ✅ TrustNet Installation Complete                       ║"
 log "╚══════════════════════════════════════════════════════════╝"
 log ""
 log "Installation Summary:"
