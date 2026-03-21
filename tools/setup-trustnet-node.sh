@@ -530,8 +530,9 @@ distribute_scripts_via_scp() {
         return 1
     fi
     
-    # Use scp to copy all .sh files
-    scp -r -P "$VM_SSH_PORT" "${lib_dir}/"*.sh "${VM_USERNAME}@localhost:/tmp/lib/" || return 1
+    # Use scp to copy all .sh files (with SSH key for warden user)
+    scp -i "$VM_SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+        -r -P "$VM_SSH_PORT" "${lib_dir}/"*.sh "${VM_USERNAME}@localhost:/tmp/lib/" || return 1
     
     log_success "Scripts distributed to VM"
 }
