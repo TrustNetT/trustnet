@@ -1,52 +1,96 @@
-# Installation Guide
+# Installation Guide (v1.0.0)
 
 ## Prerequisites
 
 - Linux system with QEMU/KVM
 - 8GB+ RAM (16GB+ recommended)
 - 100GB+ available disk space
-- Internet connection
+- Internet connection (for package update checks)
 
 ## Automatic Installation (Recommended)
 
-The one-liner installer handles everything:
+The one-liner installer orchestrates the entire setup on the **host machine**:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jcgarcia/TrustNet/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/TrustNetT/trustnet/main/install.sh | bash
 ```
 
-This will:
-1. Download installation scripts
-2. Create QEMU VM disk images
-3. Generate startup scripts
-4. Configure networking
+### What the installer does:
 
-**Installation time**: ~5-10 minutes
+**On the HOST (your machine):**
+1. Downloads public repository (all scripts from `tools/` and `tools/lib/`)
+2. Creates Alpine Linux 3.22.2 ARM64 QEMU VM disk images
+3. Provisions IPv6 ULA networking (fd10:1234::/32)
+4. Configures SSH access to new VMs
+5. Distributes installation scripts to VM via SCP
+6. Executes setup orchestrator on VM (remotely via SSH)
+
+**On the VM (via SSH orchestration):**
+1. Initializes Alpine Linux base system
+2. Sets up package cache manager
+3. Compiles TrustNet blockchain binary (trustnetd)
+4. Installs Caddy web server with HTTPS/Let's Encrypt
+5. Generates node identity and configuration
+6. Starts blockchain consensus validator
+
+**Installation time**: ~20-30 minutes (includes VM provisioning and blockchain compilation)
+
+### Installation Architecture
+
+The installation uses a **host-orchestrated, VM-executed** approach:
+
+```
+Host runs one-liner
+    ↓
+Host provisions QEMU VM
+    ↓
+Host configures SSH access to VM
+    ↓
+Host SCPs scripts to VM (/tmp/)
+    ↓
+Host executes setup-trustnet-node.sh via SSH
+    ↓
+VM runs blockchain installation (compilation, configuration)
+    ↓
+VM uses cache-manager to check for package updates
+    ↓
+Installation complete
+```
+
+### Why this architecture?
+
+- **Security**: Scripts stay on host until needed
+- **Flexibility**: Can update scripts without VM changes
+- **Offline-capable**: Cache mechanism means fewer internet hits for repeat installs
+- **Network efficiency**: SCP distribution is fast and reliable
+- **Auditable**: All host-side operations logged to `~/.trustnet/logs/install-*.log`
+
+### Cache Mechanism
+
+The VM uses an intelligent caching system to optimize installation:
+
+- **Cache location**: `/var/cache/trustnet-build/` (inside VM)
+- **Cached items**: Go compiler, Ignite CLI, package indexes
+- **Update detection**: Checks internet for newer versions
+- **Smart fallback**: Uses cached version if internet unavailable
+- **Result**: Fast installations on repeat VMs while maintaining package freshness
 
 ## Manual Installation
 
-If you prefer step-by-step control:
+For step-by-step control without the one-liner:
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/Ingasti/trustnet-wip.git trustnet-setup
+git clone https://github.com/TrustNetT/trustnet.git trustnet-setup
 cd trustnet-setup
 
-# 2. Run VM setup
-bash tools/setup-vms.sh --auto
+# 2. Run the installation orchestrator
+# (This runs install.sh steps manually)
+qemu-img create -f qcow2 trustnet-node.qcow2 50G
+# ... other manual setup steps ...
 
-# 3. Start the VMs
-~/vms/trustnet-node/start-trustnet-node.sh
-~/vms/trustnet-registry/start-trustnet-registry.sh
-
-# 4. Install Alpine Linux on VMs
-bash tools/install-alpine.sh --auto
-
-# 5. Deploy services
-bash tools/deploy-services.sh --auto
-
-# 6. Verify installation
-bash tools/verify-installation.sh --auto
+# Note: Most users should use the one-liner instead
+# Manual installation requires deep knowledge of the architecture
 ```
 
 ## Starting the VMs
