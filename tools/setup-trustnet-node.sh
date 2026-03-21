@@ -502,13 +502,16 @@ main() {
     install_caddy_via_ssh
     install_blockchain_stack
     
-    # Phase 6: Configure SSL certificates
+    # Phase 6: Build TrustNet blockchain binary and initialize chain
+    source "${LIB_DIR}/build-trustnet-blockchain.sh"
+    
+    # Phase 7: Configure SSL certificates
     install_certificates_on_host
     
-    # Phase 7: Configure MOTD and final touches
+    # Phase 8: Configure MOTD and final touches
     setup_motd_via_ssh
     
-    # Phase 8: Configure host SSH and save credentials
+    # Phase 9: Configure host SSH and save credentials
     configure_ssh_on_host
     save_credentials
     
