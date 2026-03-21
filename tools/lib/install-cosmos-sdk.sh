@@ -278,7 +278,7 @@ cat > /tmp/index.html << 'HTML_EOF'
         </div>
         
         <div style="margin-top: 30px; text-align: center; opacity: 0.7; font-size: 0.9em;">
-            <p>TrustNet Node v1.0.0 | Cosmos SDK | Tendermint BFT</p>
+            <p>TrustNet Node Core v1.0.0 | Cosmos SDK | Tendermint BFT</p>
             <p style="margin-top: 5px;">Served via Caddy HTTPS with Let's Encrypt</p>
         </div>
     </div>
