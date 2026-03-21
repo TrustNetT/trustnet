@@ -93,7 +93,23 @@ VM_DIR="${HOME}/vms/trustnet"
 VM_NAME="trustnet"
 VM_MEMORY="2G"
 VM_CPUS="2"
-VM_SSH_PORT="2223"
+
+# Find an available port (starting from 2223)
+find_available_port() {
+    local port=2223
+    local max_port=2243
+    while [ $port -lt $max_port ]; do
+        if ! (echo >/dev/tcp/127.0.0.1/$port) 2>/dev/null; then
+            echo $port
+            return 0
+        fi
+        ((port++))
+    done
+    echo "ERROR: No available ports between 2223-2242" >&2
+    exit 1
+}
+
+VM_SSH_PORT=$(find_available_port)
 
 # TrustNet Node Configuration
 VM_HOSTNAME="trustnet.local"
