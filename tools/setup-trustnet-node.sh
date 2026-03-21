@@ -93,7 +93,7 @@ VM_DIR="${HOME}/vms/trustnet"
 VM_NAME="trustnet"
 VM_MEMORY="2G"
 VM_CPUS="2"
-VM_SSH_PORT="${VM_SSH_PORT:-2223}"  # Use environment variable if set by install.sh port detection
+VM_SSH_PORT="2223"
 
 # TrustNet Node Configuration
 VM_HOSTNAME="trustnet.local"
@@ -401,141 +401,6 @@ EOF
     log_success "Credentials saved to ${VM_DIR}/credentials.txt"
 }
 
-generate_start_script() {
-    log "Generating management scripts..."
-    
-    # Create start-trustnet.sh
-    cat > "${VM_DIR}/start-trustnet.sh" << 'SCRIPT_EOF'
-#!/bin/bash
-# Start TrustNet VM
-# Usage: ./start-trustnet.sh
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VM_NAME="trustnet"
-VM_DISK="${SCRIPT_DIR}/trustnet.qcow2"
-
-if [ ! -f "$VM_DISK" ]; then
-    echo "Error: VM disk not found at $VM_DISK"
-    exit 1
-fi
-
-echo "Starting TrustNet VM..."
-qemu-system-x86_64 \
-    -name "$VM_NAME" \
-    -m 2G \
-    -smp 2 \
-    -drive file="$VM_DISK",format=qcow2,if=virtio \
-    -netdev user,id=net0,hostfwd=tcp:127.0.0.1:2223-:22 \
-    -device virtio-net-pci,netdev=net0 \
-    -daemonize
-
-echo "VM started. Connect with: ssh trustnet"
-SCRIPT_EOF
-    chmod +x "${VM_DIR}/start-trustnet.sh"
-    
-    # Create stop-trustnet.sh
-    cat > "${VM_DIR}/stop-trustnet.sh" << 'SCRIPT_EOF'
-#!/bin/bash
-# Stop TrustNet VM gracefully
-# Usage: ./stop-trustnet.sh
-
-VM_USERNAME="${VM_USERNAME:-warden}"
-VM_HOSTNAME="${VM_HOSTNAME:-trustnet.local}"
-VM_SSH_PORT="${VM_SSH_PORT:-2223}"
-
-echo "Stopping TrustNet VM gracefully..."
-
-# Try SSH shutdown first
-if timeout 5 ssh -o ConnectTimeout=3 -o StrictHostKeyChecking=no \
-    -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" \
-    "sudo shutdown -h now" 2>/dev/null; then
-    echo "VM shutdown command sent. Waiting for shutdown..."
-    sleep 5
-    
-    # Check if still running
-    if pgrep -f "qemu-system.*trustnet" > /dev/null; then
-        echo "VM still running, sending SIGTERM..."
-        pkill -f "qemu-system.*trustnet"
-        sleep 2
-    fi
-else
-    echo "SSH unavailable, forcing shutdown..."
-    pkill -f "qemu-system.*trustnet" || true
-    sleep 1
-fi
-
-if pgrep -f "qemu-system.*trustnet" > /dev/null; then
-    echo "VM still running, forcing kill..."
-    pkill -9 -f "qemu-system.*trustnet"
-fi
-
-echo "VM stopped"
-SCRIPT_EOF
-    chmod +x "${VM_DIR}/stop-trustnet.sh"
-    
-    # Create status-trustnet.sh
-    cat > "${VM_DIR}/status-trustnet.sh" << 'SCRIPT_EOF'
-#!/bin/bash
-# Check TrustNet VM status
-# Usage: ./status-trustnet.sh
-
-VM_USERNAME="${VM_USERNAME:-warden}"
-VM_HOSTNAME="${VM_HOSTNAME:-trustnet.local}"
-VM_SSH_PORT="${VM_SSH_PORT:-2223}"
-
-echo "TrustNet VM Status"
-echo "=================="
-echo ""
-
-# Check QEMU process
-if pgrep -f "qemu-system.*trustnet" > /dev/null; then
-    echo "✓ QEMU Process: Running"
-else
-    echo "✗ QEMU Process: Stopped"
-    exit 0
-fi
-
-# Check SSH connectivity
-if timeout 3 ssh -o ConnectTimeout=3 -o StrictHostKeyChecking=no \
-    -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" "echo OK" 2>/dev/null; then
-    echo "✓ SSH Access: OK"
-    
-    # Get uptime via SSH
-    UPTIME=$(ssh -o ConnectTimeout=3 -o StrictHostKeyChecking=no \
-        -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" "uptime" 2>/dev/null | cut -d',' -f1)
-    echo "→ Uptime: $UPTIME"
-    
-    # Check blockchain service
-    if ssh -o ConnectTimeout=3 -o StrictHostKeyChecking=no \
-        -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" \
-        "[ -d /opt/trustnet ]" 2>/dev/null; then
-        echo "✓ TrustNet Blockchain: Installed"
-    else
-        echo "✗ TrustNet Blockchain: Not found"
-    fi
-    
-    # Check web UI
-    if timeout 3 curl -sf https://localhost:8443 -k >/dev/null 2>&1; then
-        echo "✓ Web UI (HTTPS): OK"
-    else
-        echo "✗ Web UI (HTTPS): Unreachable"
-    fi
-else
-    echo "✗ SSH Access: Cannot connect"
-fi
-
-echo ""
-echo "SSH Command: ssh -p $VM_SSH_PORT $VM_USERNAME@$VM_HOSTNAME"
-echo "Web UI: https://$VM_HOSTNAME"
-SCRIPT_EOF
-    chmod +x "${VM_DIR}/status-trustnet.sh"
-    
-    log_success "Management scripts created:"
-    log "  Start:  ${VM_DIR}/start-trustnet.sh"
-    log "  Stop:   ${VM_DIR}/stop-trustnet.sh"
-    log "  Status: ${VM_DIR}/status-trustnet.sh"
-}
-
 print_completion_message() {
     log ""
     log "╔══════════════════════════════════════════════════════════════════════╗"
@@ -629,11 +494,6 @@ main() {
     
     # Phase 8: Configure host SSH and save credentials
     configure_ssh_on_host
-    
-    # Phase 9: Generate management scripts
-    generate_start_script
-    
-    # Save final credentials
     save_credentials
     
     # Completion

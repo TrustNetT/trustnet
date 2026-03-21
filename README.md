@@ -334,7 +334,7 @@ For issues or questions:
 2. Review logs inside VM: `ssh -p 2222 warden@127.0.0.1 'tail -f /opt/trustnet/node/logs/*'`
 3. Verify installation with commands in [docs/INSTALLATION.md](docs/INSTALLATION.md#verifying-installation)
 4. Check [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for system design details
-5. Open issue on [GitHub repository](https://github.com/jcgarcia/TrustNet)
+5. Open issue on [GitHub repository](https://github.com/TrustNetT/trustnet)
 
 ## 📝 License
 
@@ -345,9 +345,9 @@ MIT License - See LICENSE file for details.
 Contributions welcome! The project is organized as:
 
 - **WIP Repository** (Ingasti/trustnet-wip) - Development and planning
-- **Public Repository** (jcgarcia/TrustNet) - Distribution and installation
+- **Public Repository** (TrustNetT/trustnet) - Distribution and installation
 
-For questions or contributions, visit the [GitHub repository](https://github.com/jcgarcia/TrustNet).
+For questions or contributions, visit the [GitHub repository](https://github.com/TrustNetT/trustnet).
 
 ---
 
