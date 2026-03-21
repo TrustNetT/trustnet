@@ -114,17 +114,25 @@ configure_installed_vm() {
     # Wait for SSH port to open
     log_info "Waiting for SSH port to open..."
     local count=0
-    while ! nc -z localhost "$VM_SSH_PORT" 2>/dev/null && [ $count -lt 60 ]; do
+    # Use bash's /dev/tcp as fallback if nc is not available
+    while true; do
+        if (timeout 1 bash -c "cat < /dev/null > /dev/tcp/localhost/$VM_SSH_PORT" 2>/dev/null || \
+            timeout 1 nc -z localhost "$VM_SSH_PORT" 2>/dev/null || \
+            timeout 1 bash -c "echo '' | telnet localhost $VM_SSH_PORT 2>/dev/null | grep -q Connected"); then
+            break
+        fi
         sleep 2
         ((count++))
         echo -n "."
+        if [ $count -ge 60 ]; then
+            log_error "VM failed to start - SSH port never opened after 120 seconds"
+            log_error "This could mean: 1) QEMU didn't start, 2) Alpine didn't boot, or 3) SSH didn't start"
+            log_error "Check: ps aux | grep qemu and ssh trustnet status"
+            exit 1
+        fi
     done
     echo ""
-    
-    if [ $count -ge 60 ]; then
-        log_error "VM failed to start - SSH port never opened"
-        exit 1
-    fi
+    log_info "Port $VM_SSH_PORT is open"
     
     # Port is open, but SSH may not be fully ready - wait for Alpine to finish booting
     # Detect acceleration type to show appropriate message
