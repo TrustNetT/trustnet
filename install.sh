@@ -61,6 +61,100 @@ if [ -d "$IDENTITY_BACKUP" ]; then
     log "  Your identity will be restored during installation"
 fi
 
+# ============================================================================
+# PORT MANAGEMENT: Check and manage SSH port 2223
+# ============================================================================
+log "→ Checking SSH port availability..."
+
+VM_USERNAME="${VM_USERNAME:-warden}"
+VM_HOSTNAME="${VM_HOSTNAME:-trustnet.local}"
+VM_SSH_PORT="${VM_SSH_PORT:-2223}"
+
+# Function to check if port is in use
+is_port_in_use() {
+    local port=$1
+    
+    # Try netcat first (most reliable)
+    if command -v nc &> /dev/null; then
+        nc -z localhost "$port" 2>/dev/null && return 0 || return 1
+    fi
+    
+    # Fallback to lsof
+    if command -v lsof &> /dev/null; then
+        lsof -Pi :$port 2>/dev/null | grep -q LISTEN && return 0 || return 1
+    fi
+    
+    # Final fallback to /proc filesystem (Linux only)
+    if [ -f /proc/net/tcp ]; then
+        local port_hex=$(printf '%x' "$port")
+        grep -q ":$port_hex " /proc/net/tcp 2>/dev/null && return 0 || return 1
+    fi
+    
+    # If we can't determine, assume it's free (optimistic approach)
+    log "⚠ Cannot determine port status (nc/lsof not available)"
+    return 1
+}
+
+# Function to check if it's a TrustNet VM
+is_trustnet_vm_running() {
+    # Use SSH with connection timeout of 3 seconds
+    ssh -o ConnectTimeout=3 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+        -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" \
+        "[ -d /opt/trustnet ]" 2>/dev/null && return 0 || return 1
+}
+
+# Check if port 2223 is in use
+if is_port_in_use "$VM_SSH_PORT"; then
+    log "⚠ Port $VM_SSH_PORT is already in use"
+    
+    # Check if it's a TrustNet VM
+    if is_trustnet_vm_running; then
+        log "→ Detected existing TrustNet VM on port $VM_SSH_PORT"
+        log "→ Attempting graceful shutdown of existing VM..."
+        
+        # Try to stop the existing VM using its stop script
+        if [ -f "$HOME/vms/trustnet/stop-trustnet.sh" ]; then
+            bash "$HOME/vms/trustnet/stop-trustnet.sh"
+            
+            # Wait for port to be free (max 30 seconds)
+            log "→ Waiting for port $VM_SSH_PORT to be released..."
+            retry_count=0
+            max_retries=30
+            
+            while is_port_in_use "$VM_SSH_PORT" && [ $retry_count -lt $max_retries ]; do
+                sleep 1
+                retry_count=$((retry_count + 1))
+            done
+            
+            if ! is_port_in_use "$VM_SSH_PORT"; then
+                log "✓ Port $VM_SSH_PORT is now available"
+            else
+                log_error "Port $VM_SSH_PORT still in use after 30 seconds"
+                log_error "Please manually stop the VM: bash $HOME/vms/trustnet/stop-trustnet.sh"
+                exit 1
+            fi
+        else
+            log_error "Cannot find stop script: $HOME/vms/trustnet/stop-trustnet.sh"
+            log_error "Please manually stop the existing VM and try again"
+            exit 1
+        fi
+    else
+        log "⚠ Port $VM_SSH_PORT is in use but not by a TrustNet VM"
+        log "ERROR: Cannot safely proceed - port $VM_SSH_PORT is already in use by another service"
+        log "Please free this port or specify a different one via VM_SSH_PORT environment variable"
+        exit 1
+    fi
+else
+    log "✓ Port $VM_SSH_PORT is available"
+fi
+
+# SSH config verification
+log "→ Checking SSH configuration..."
+if ! grep -q "Host trustnet.local" "$HOME/.ssh/config" 2>/dev/null; then
+    log "⚠ SSH config entry for trustnet.local not found"
+    log "  Will be created during VM setup"
+fi
+
 # Download latest scripts (always get fresh version)
 log "→ Downloading latest scripts..."
 
@@ -121,13 +215,31 @@ log ""
 # Export log file for setup script
 export TRUSTNET_LOG_FILE="$LOG_FILE"
 
-# Run the setup script with --auto flag
-./setup-trustnet-node.sh --auto
-BASE_INSTALL_RESULT=$?
+# ============================================================================
+# SMART VM DETECTION: Check if port 2223 is already in use
+# ============================================================================
+VM_USERNAME="warden"
+VM_HOSTNAME="trustnet.local"
+VM_SSH_PORT="2223"
 
-if [ $BASE_INSTALL_RESULT -ne 0 ]; then
-    log_error "Base installation failed (exit code: $BASE_INSTALL_RESULT)"
-    exit $BASE_INSTALL_RESULT
+VM_ALREADY_EXISTS=0
+if timeout 3 ssh -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" "echo OK" &>/dev/null 2>&1; then
+    log "✓ Existing trustnet VM found at $VM_HOSTNAME:$VM_SSH_PORT"
+    log "  Skipping VM creation - using existing node"
+    VM_ALREADY_EXISTS=1
+    BASE_INSTALL_RESULT=0
+else
+    log "→ No existing VM detected on port $VM_SSH_PORT"
+    log "→ Creating new trustnet VM (this will take 3-5 minutes)..."
+    
+    # Run the setup script with --auto flag to create new VM
+    ./setup-trustnet-node.sh --auto
+    BASE_INSTALL_RESULT=$?
+    
+    if [ $BASE_INSTALL_RESULT -ne 0 ]; then
+        log_error "Base installation failed (exit code: $BASE_INSTALL_RESULT)"
+        exit $BASE_INSTALL_RESULT
+    fi
 fi
 
 log ""
@@ -176,11 +288,7 @@ log "✓ v1.1.0 files staged locally"
 log ""
 log "→ Deploying v1.1.0 to running VM..."
 
-VM_USERNAME="warden"
-VM_HOSTNAME="trustnet.local"
-VM_SSH_PORT="2223"
-
-# Test SSH connectivity
+# Test SSH connectivity (should be available whether VM was just created or pre-existing)
 if ! ssh -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" "echo OK" &>/dev/null; then
     log_error "Cannot connect to VM at $VM_USERNAME@$VM_HOSTNAME:$VM_SSH_PORT"
     log "Ensure base installation completed successfully"
