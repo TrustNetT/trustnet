@@ -344,7 +344,6 @@ package main
 import (
     \"fmt\"
     \"os\"
-    \"time\"
 )
 func main() {
     if len(os.Args) < 2 {
