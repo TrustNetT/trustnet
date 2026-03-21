@@ -115,20 +115,18 @@ find_available_port() {
     return 1
 }
 
-# Function to check if it's a TrustNet VM
+# Function to check if it's a TrustNet VM (by checking QEMU process)
 is_trustnet_vm_running() {
-    # Use SSH with connection timeout of 3 seconds
-    ssh -o ConnectTimeout=3 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-        -p "$1" "$VM_USERNAME@$VM_HOSTNAME" \
-        "[ -d /opt/trustnet ]" 2>/dev/null && return 0 || return 1
+    # Check if QEMU process with trustnet disk is running
+    pgrep -f "qemu-system.*trustnet.qcow2" > /dev/null 2>&1 && return 0 || return 1
 }
 
 # Check if port is available
 if is_port_in_use "$VM_SSH_PORT"; then
     log "⚠ Port $VM_SSH_PORT is already in use"
     
-    # Check if it's a TrustNet VM
-    if is_trustnet_vm_running "$VM_SSH_PORT"; then
+    # First check if it's a TrustNet VM by looking for QEMU process
+    if is_trustnet_vm_running; then
         log "→ Detected existing TrustNet VM on port $VM_SSH_PORT"
         log "→ Attempting graceful shutdown of existing VM..."
         
