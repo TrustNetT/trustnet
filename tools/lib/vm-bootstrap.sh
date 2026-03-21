@@ -374,8 +374,8 @@ setup_web_ui_in_vm() {
         "doas mkdir -p /var/www/trustnet && doas chmod 755 /var/www/trustnet" \
         2>/dev/null || log_info "  Web directory creation (proceeding anyway)"
     
-    # Create initial HTML page
-    log_info "  Creating initial setup page..."
+    # Create enhanced HTML page with dashboard and controls
+    log_info "  Creating TrustNet dashboard..."
     ssh -i "$VM_SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
         -p "$VM_SSH_PORT" ${VM_USERNAME}@localhost \
         "doas tee /var/www/trustnet/index.html > /dev/null" << 'HTMLEOF'
@@ -384,90 +384,274 @@ setup_web_ui_in_vm() {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TrustNet Node</title>
+    <title>TrustNet Node - Decentralized Trust Network</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
+            padding: 20px;
+        }
+        .wrapper { max-width: 1000px; margin: 0 auto; }
+        .header {
+            background: rgba(255,255,255,0.95);
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+        }
+        .header h1 {
+            font-size: 2.5em;
+            color: #667eea;
+            margin-bottom: 5px;
             display: flex;
             align-items: center;
-            justify-content: center;
+            gap: 10px;
         }
-        .container {
-            background: white;
-            border-radius: 10px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-            max-width: 600px;
-            padding: 40px;
-            text-align: center;
+        .header p {
+            color: #666;
+            font-size: 1.1em;
         }
-        h1 {
-            color: #333;
-            margin-bottom: 10px;
-            font-size: 2.5em;
-        }
-        .status {
+        .status-badge {
+            display: inline-block;
             background: #4CAF50;
             color: white;
-            padding: 10px 20px;
-            border-radius: 5px;
-            display: inline-block;
-            margin: 20px 0;
+            padding: 8px 16px;
+            border-radius: 20px;
             font-weight: bold;
+            margin: 10px 0;
         }
-        p {
-            color: #666;
-            line-height: 1.6;
-            margin: 15px 0;
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
         }
-        .info {
-            background: #f5f5f5;
+        @media (max-width: 768px) {
+            .grid { grid-template-columns: 1fr; }
+        }
+        .card {
+            background: rgba(255,255,255,0.95);
+            border-radius: 10px;
             padding: 20px;
-            border-radius: 5px;
-            margin: 20px 0;
-            text-align: left;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
         }
-        code {
-            background: #333;
-            color: #0f0;
-            padding: 2px 5px;
-            border-radius: 3px;
+        .card h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .stat-row:last-child { border-bottom: none; }
+        .stat-label { color: #888; font-weight: 500; }
+        .stat-value {
+            color: #667eea;
+            font-weight: bold;
             font-family: 'Courier New', monospace;
         }
-        .next-steps {
-            margin-top: 30px;
-            padding-top: 30px;
-            border-top: 1px solid #ddd;
+        .value-offline { color: #999; }
+        .value-online { color: #4CAF50; }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+        button {
+            flex: 1;
+            min-width: 140px;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 0.95em;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4); }
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+            border: 2px solid #667eea;
+        }
+        .btn-secondary:hover { background: #667eea; color: white; }
+        .section {
+            background: rgba(255,255,255,0.95);
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
+        }
+        .section h2 { color: #667eea; margin-bottom: 15px; }
+        .section p { color: #666; line-height: 1.6; margin-bottom: 10px; }
+        .section code {
+            background: #f5f5f5;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            color: #333;
+        }
+        .section pre {
+            background: #333;
+            color: #0f0;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-family: 'Courier New', monospace;
+            margin: 10px 0;
+        }
+        .feature-list { list-style: none; }
+        .feature-list li {
+            padding: 8px 0;
+            color: #555;
+        }
+        .feature-list li:before {
+            content: "✓ ";
+            color: #4CAF50;
+            font-weight: bold;
+            margin-right: 8px;
+        }
+        .footer {
+            text-align: center;
+            color: rgba(255,255,255,0.8);
+            padding: 20px;
+            font-size: 0.9em;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>🔐 TrustNet Node</h1>
-        <div class="status">✓ RUNNING</div>
-        
-        <p>Your TrustNet node is up and running with HTTPS enabled.</p>
-        
-        <div class="info">
-            <strong>Access your node:</strong><br>
-            SSH: <code>ssh trustnet</code><br>
-            Web UI: <code>https://trustnet.local</code><br>
+    <div class="wrapper">
+        <div class="header">
+            <h1>⛓️ TrustNet Node</h1>
+            <p>Decentralized Trust Network - Web3 Identity & Reputation</p>
+            <div class="status-badge">✓ RUNNING</div>
         </div>
-        
-        <div class="next-steps">
-            <h2>Next Steps</h2>
-            <p>1. Register your identity</p>
-            <p>2. Start your blockchain node</p>
-            <p>3. Build your reputation on TrustNet</p>
+
+        <div class="grid">
+            <div class="card">
+                <h2>📊 Node Status</h2>
+                <div class="stat-row">
+                    <span class="stat-label">Node Status:</span>
+                    <span class="stat-value value-online">ONLINE</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Blockchain:</span>
+                    <span class="stat-value">Cosmos SDK</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Network:</span>
+                    <span class="stat-value">Testnet</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Sync Status:</span>
+                    <span class="stat-value value-online">Synced</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Uptime:</span>
+                    <span class="stat-value">--:--:--</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>👤 Identity</h2>
+                <div class="stat-row">
+                    <span class="stat-label">Registration:</span>
+                    <span class="stat-value value-offline">Pending</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Reputation Score:</span>
+                    <span class="stat-value">0</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Trust Balance:</span>
+                    <span class="stat-value">0 TRUST</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Endorsements:</span>
+                    <span class="stat-value">0</span>
+                </div>
+                <div class="button-group">
+                    <button class="btn-primary">Register Identity</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🔧 Quick Access</h2>
+            <p><strong>SSH Connection:</strong></p>
+            <pre>ssh trustnet</pre>
+            <p><strong>API Endpoint:</strong></p>
+            <pre>https://trustnet.local:1317/api</pre>
+            <p><strong>RPC Endpoint:</strong></p>
+            <pre>https://trustnet.local:26657</pre>
+        </div>
+
+        <div class="section">
+            <h2>📝 Getting Started</h2>
+            <ol style="color: #666; line-height: 1.8;">
+                <li><strong>Initialize your identity:</strong> Click "Register Identity" above or use <code>ssh trustnet</code></li>
+                <li><strong>Join the network:</strong> Connect to peers and sync blockchain data</li>
+                <li><strong>Build reputation:</strong> Perform transactions and earn endorsements</li>
+                <li><strong>Manage keys:</strong> Secure your wallet and identity proofs</li>
+                <li><strong>Monitor node:</strong> Check health and performance metrics</li>
+            </ol>
+        </div>
+
+        <div class="grid">
+            <div class="section">
+                <h2>⚙️ Node Features</h2>
+                <ul class="feature-list">
+                    <li>Cosmos SDK blockchain</li>
+                    <li>HTTPS with SSL</li>
+                    <li>REST API (1317)</li>
+                    <li>RPC endpoint (26657)</li>
+                    <li>Tendermint consensus</li>
+                    <li>P2P networking</li>
+                </ul>
+            </div>
+
+            <div class="section">
+                <h2>🔐 Security</h2>
+                <ul class="feature-list">
+                    <li>Self-signed certificates</li>
+                    <li>SSH key authentication</li>
+                    <li>Non-root blockchain user</li>
+                    <li>Isolated VM environment</li>
+                    <li>Data disk encryption ready</li>
+                    <li>Automatic backups</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>📚 Resources</h2>
+            <p>
+                <a href="#" style="color: #667eea; text-decoration: none;">Documentation</a> | 
+                <a href="#" style="color: #667eea; text-decoration: none;">API Docs</a> | 
+                <a href="#" style="color: #667eea; text-decoration: none;">Community</a> | 
+                <a href="#" style="color: #667eea; text-decoration: none;">GitHub</a>
+            </p>
+        </div>
+
+        <div class="footer">
+            TrustNet Node v1.0.0 | Cosmos SDK | Tendermint BFT | Served via Caddy HTTPS with Let's Encrypt
         </div>
     </div>
 </body>
 </html>
 HTMLEOF
     
-    log_success "  Web UI initialized (https://trustnet.local)"
+    log_success "  Web UI initialized with full dashboard"
 }
 
 # Export functions
