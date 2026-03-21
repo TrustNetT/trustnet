@@ -523,27 +523,17 @@ distribute_scripts_via_scp() {
     # Create lib directory on VM
     ssh -p "$VM_SSH_PORT" "${VM_USERNAME}@localhost" "mkdir -p /tmp/lib" || return 1
     
-    # Check if library directory exists locally (dev mode)
+    # Copy library scripts from host to VM
     local lib_dir="$PROJECT_ROOT/tools/lib"
-    if [ -d "$lib_dir" ]; then
-        # Use scp to copy all .sh files (with SSH key for warden user)
-        scp -i "$VM_SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-            -r -P "$VM_SSH_PORT" "${lib_dir}/"*.sh "${VM_USERNAME}@localhost:/tmp/lib/" || return 1
-        log_success "Scripts distributed to VM (local)"
-    else
-        # One-liner install: download scripts directly from GitHub
-        log_info "Downloading scripts from GitHub (one-liner install)..."
-        ssh -i "$VM_SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-            -p "$VM_SSH_PORT" "${VM_USERNAME}@localhost" << 'GITHUB_DOWNLOAD'
-#!/bin/bash
-GITHUB_RAW="https://raw.githubusercontent.com/TrustNetT/trustnet/main/tools/lib"
-for script in common.sh build-trustnet-blockchain.sh install-cosmos-sdk.sh install-caddy.sh install-certificates.sh setup-motd.sh; do
-    curl -fsSL "$GITHUB_RAW/$script" -o "/tmp/lib/$script" || true
-done
-chmod +x /tmp/lib/*.sh
-GITHUB_DOWNLOAD
-        log_success "Scripts downloaded from GitHub"
+    if [ ! -d "$lib_dir" ]; then
+        log_error "Library directory not found: $lib_dir"
+        return 1
     fi
+    
+    # Use scp to copy all .sh files
+    scp -r -P "$VM_SSH_PORT" "${lib_dir}/"*.sh "${VM_USERNAME}@localhost:/tmp/lib/" || return 1
+    
+    log_success "Scripts distributed to VM"
 }
 
 execute_blockchain_installation() {
@@ -588,9 +578,15 @@ REMOTE_SCRIPT
     log_success "Blockchain installation completed on VM"
 }
 
+configure_installed_vm() {
+    log "Configuring installed VM..."
+    # Wait for VM to boot and SSH to be ready
+    distribute_scripts_via_scp
+    log_success "VM configured"
+}
+
 install_blockchain_stack() {
     log "Installing blockchain stack..."
-    distribute_scripts_via_scp
     execute_blockchain_installation
     log_success "Blockchain stack installed"
 }

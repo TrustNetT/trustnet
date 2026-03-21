@@ -161,7 +161,7 @@ create_disks() {
     
     # Check if system disk exists and has data
     if [ -f "$SYSTEM_DISK" ]; then
-        local disk_actual=$(qemu-img info "$SYSTEM_DISK" 2>/dev/null | grep "disk size" | awk '{print $3}' | sed 's/[GMK].*//' | tr -d '\n')
+        local disk_actual=$(qemu-img info "$SYSTEM_DISK" 2>/dev/null | grep "disk size" | awk '{print $3}' | sed 's/[GMK].*//')
         
         # If disk has > 100MB, it likely has an installation
         if [ -n "$disk_actual" ] && [ "$disk_actual" != "0" ] && [ "${disk_actual%%.*}" -gt "100" ]; then
@@ -331,7 +331,7 @@ start_vm_for_install() {
     
     # Export variables for expect script
     export VM_HOSTNAME VM_ROOT_PASSWORD
-    export VM_SSH_PUBLIC_KEY_CONTENT="$(cat "$VM_SSH_PUBLIC_KEY" | tr -d '\n')"
+    export VM_SSH_PUBLIC_KEY_CONTENT="$(cat "$VM_SSH_PUBLIC_KEY")"
     export QEMU_COMMAND="$qemu_cmd"
     
     # Run automated installation using external expect script (in parent tools/ directory)
