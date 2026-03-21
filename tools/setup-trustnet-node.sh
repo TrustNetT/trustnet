@@ -533,38 +533,45 @@ distribute_scripts_via_scp() {
 }
 
 execute_blockchain_installation() {
-    log "Executing full blockchain stack installation..."
+    log "Executing blockchain installation on VM..."
     
-    # Source library functions on HOST (not VM) so ssh_exec can be used
-    local lib_dir="$PROJECT_ROOT/tools/lib"
+    # Create a simple orchestrator script on the VM that sources and runs the installations
+    ssh -p "$VM_SSH_PORT" "${VM_USERNAME}@localhost" "bash" << 'REMOTE_SCRIPT'
+#!/bin/bash
+set -euo pipefail
+
+# Source common functions
+source /tmp/lib/common.sh 2>/dev/null || true
+
+# Make all lib scripts executable
+chmod +x /tmp/lib/*.sh
+
+# Run installations sequentially
+echo "=== Installing Cosmos SDK and Go ==="
+if [ -f /tmp/lib/install-cosmos-sdk.sh ]; then
+    bash /tmp/lib/install-cosmos-sdk.sh
+else
+    echo "WARNING: install-cosmos-sdk.sh not found"
+fi
+
+echo "=== Installing Caddy ==="
+if [ -f /tmp/lib/install-caddy.sh ]; then
+    bash /tmp/lib/install-caddy.sh
+else
+    echo "WARNING: install-caddy.sh not found"
+fi
+
+echo "=== Building TrustNet Blockchain ==="
+if [ -f /tmp/lib/build-trustnet-blockchain.sh ]; then
+    bash /tmp/lib/build-trustnet-blockchain.sh
+else
+    echo "WARNING: build-trustnet-blockchain.sh not found"
+fi
+
+echo "=== Installation Complete ==="
+REMOTE_SCRIPT
     
-    if [ ! -f "$lib_dir/common.sh" ]; then
-        log_error "common.sh not found in $lib_dir"
-        return 1
-    fi
-    
-    # Source common functions first (provides logging, ssh_exec, etc.)
-    source "$lib_dir/common.sh" || { log_error "Failed to source common.sh"; return 1; }
-    
-    # Source the blockchain stack installation (includes Go, Ignite, blockchain build, Web UI)
-    if [ -f "$lib_dir/install-cosmos-sdk.sh" ]; then
-        source "$lib_dir/install-cosmos-sdk.sh" || { log_error "Failed to source install-cosmos-sdk.sh"; return 1; }
-    else
-        log_error "install-cosmos-sdk.sh not found"
-        return 1
-    fi
-    
-    # Call the main orchestration function which runs everything in sequence
-    # This includes: Go+Ignite → Config → Blockchain Binary → Web UI
-    log_info "Starting blockchain installation orchestration..."
-    if type install_blockchain_stack >/dev/null 2>&1; then
-        install_blockchain_stack
-    else
-        log_error "install_blockchain_stack function not found"
-        return 1
-    fi
-    
-    log_success "Full blockchain stack installation completed"
+    log_success "Blockchain installation completed on VM"
 }
 
 configure_installed_vm() {
