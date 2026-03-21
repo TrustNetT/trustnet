@@ -6,12 +6,12 @@
 
 set -e
 
-# Colors for output (use common.sh values if already defined)
-if [ -z "$RED" ]; then RED='\033[0;31m'; fi
-if [ -z "$GREEN" ]; then GREEN='\033[0;32m'; fi
-if [ -z "$YELLOW" ]; then YELLOW='\033[1;33m'; fi
-if [ -z "$BLUE" ]; then BLUE='\033[0;34m'; fi
-if [ -z "$NC" ]; then NC='\033[0m'; fi
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
 
 log() {
     echo -e "${BLUE}[$(date '+%H:%M:%S')]${NC} $*"
@@ -25,23 +25,13 @@ log_error() {
     echo -e "${RED}[$(date '+%H:%M:%S')] ✗${NC} $*" >&2
 }
 
-# Helper function to run bash either via SSH or directly
-run_bash() {
-    # If SSH_KEY is available, use SSH; otherwise run directly (already on VM)
-    if [ -n "$SSH_KEY" ] && [ -f "$SSH_KEY" ]; then
-        ssh -p "$VM_SSH_PORT" -i "$SSH_KEY" -o StrictHostKeyChecking=no warden@127.0.0.1 bash "$@"
-    else
-        bash "$@"
-    fi
-}
-
 log_warning() {
     echo -e "${YELLOW}[$(date '+%H:%M:%S')] ⚠${NC} $*"
 }
 
-# Ensure variables are exported from parent script or set defaults
-VM_SSH_PORT="${VM_SSH_PORT:-2223}"
-SSH_KEY="${SSH_KEY:-}"
+# Ensure variables are exported from parent script
+: "${VM_SSH_PORT:?VM_SSH_PORT not set}"
+: "${SSH_KEY:?SSH_KEY not set}"
 
 # Configuration
 TRUSTNET_HOME="${HOME}/trustnet"
@@ -124,8 +114,7 @@ go build -o /tmp/trustnetd cmd/trustnetd/main.go
 echo "[trustnetd] Binary built successfully"
 '
     
-    # Run build script directly (already on VM or use SSH if SSH_KEY available)
-if [ -n "$SSH_KEY" ] && [ -f "$SSH_KEY" ]; then
+    # Run build script in VM
     ssh -p "$VM_SSH_PORT" -i "$SSH_KEY" -o StrictHostKeyChecking=no warden@127.0.0.1 bash << 'SSHEOF' 2>&1 | sed 's/^/[VM] /'
 set -e
 cd /tmp
@@ -200,82 +189,8 @@ GOEOF
 
 bash build.sh
 SSHEOF
-else
-    # Running directly on VM (not via SSH)
-    set -e
-    cd /tmp
-    cat > build.sh << 'GOEOF'
-#!/bin/bash
-set -e
-
-# Create project structure
-mkdir -p /tmp/trustnet-build
-cd /tmp/trustnet-build
-
-# Initialize Go module
-go mod init github.com/trustnet/core || true
-
-# Create minimal blockchain using Cosmos SDK patterns
-mkdir -p cmd/trustnetd
-mkdir -p internal/{keeper,types}
-
-# Main entry point
-cat > cmd/trustnetd/main.go << 'GOEOF2'
-package main
-
-import (
-    "fmt"
-    "os"
-)
-
-func main() {
-    if len(os.Args) < 2 {
-        fmt.Println("Usage: trustnetd [command]")
-        os.Exit(1)
-    }
     
-    cmd := os.Args[1]
-    
-    switch cmd {
-    case "start":
-        fmt.Println("[trustnetd] Starting TrustNet blockchain node...")
-        fmt.Println("[trustnetd] RPC listening on 0.0.0.0:26657")
-        fmt.Println("[trustnetd] P2P listening on 0.0.0.0:26656")
-        fmt.Println("[tendermint] Ready to accept connections")
-        // Keep running
-        select {}
-        
-    case "init":
-        if len(os.Args) < 3 {
-            fmt.Println("Usage: trustnetd init [node-name]")
-            os.Exit(1)
-        }
-        fmt.Printf("[trustnetd] Initializing chain for %s...\n", os.Args[2])
-        
-    case "keys":
-        if len(os.Args) < 3 {
-            fmt.Println("Usage: trustnetd keys [add|list]")
-            os.Exit(1)
-        }
-        if os.Args[2] == "add" && len(os.Args) > 3 {
-            fmt.Printf("[trustnetd] Added key: %s\n", os.Args[3])
-        }
-        
-    default:
-        fmt.Printf("Unknown command: %s\n", cmd)
-        os.Exit(1)
-    }
-}
-GOEOF2
-
-# Build the binary
-go build -o /tmp/trustnetd cmd/trustnetd/main.go
-echo "[trustnetd] Binary built successfully"
-GOEOF
-
-    chmod +x build.sh
-    bash build.sh
-fi
+    log_success "TrustNet blockchain binary built"
 }
 
 initialize_chain() {

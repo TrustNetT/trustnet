@@ -524,15 +524,10 @@ distribute_scripts_via_scp() {
     ssh -p "$VM_SSH_PORT" "${VM_USERNAME}@localhost" "mkdir -p /tmp/lib" || return 1
     
     # Copy library scripts from host to VM
-    # Check both locations: one-liner (PROJECT_ROOT/lib) and dev (PROJECT_ROOT/tools/lib)
     local lib_dir="$PROJECT_ROOT/tools/lib"
     if [ ! -d "$lib_dir" ]; then
-        # Try alternative location for one-liner install
-        lib_dir="$PROJECT_ROOT/lib"
-        if [ ! -d "$lib_dir" ]; then
-            log_error "Library directory not found: $PROJECT_ROOT/tools/lib or $PROJECT_ROOT/lib"
-            return 1
-        fi
+        log_error "Library directory not found: $lib_dir"
+        return 1
     fi
     
     # Use scp to copy all .sh files
@@ -544,51 +539,35 @@ distribute_scripts_via_scp() {
 execute_blockchain_installation() {
     log "Executing blockchain installation on VM..."
     
-    # Export variables for remote script access
-    export SSH_KEY="$VM_SSH_PRIVATE_KEY"
-    export VM_SSH_PORT="$VM_SSH_PORT"
-    
     # Create a simple orchestrator script on the VM that sources and runs the installations
-    ssh -p "$VM_SSH_PORT" "${VM_USERNAME}@localhost" "bash" << REMOTE_SCRIPT
+    ssh -p "$VM_SSH_PORT" "${VM_USERNAME}@localhost" "bash" << 'REMOTE_SCRIPT'
 #!/bin/bash
 set -euo pipefail
 
 # Source common functions
 source /tmp/lib/common.sh 2>/dev/null || true
 
-# Since we're already ON the VM, override ssh_exec to run commands directly
-# instead of trying to SSH back to localhost
-unset -f ssh_exec
-ssh_exec() {
-    bash -c "${1}"
-}
-export -f ssh_exec
-
 # Make all lib scripts executable
 chmod +x /tmp/lib/*.sh
 
-# Run installations sequentially by sourcing them
+# Run installations sequentially
 echo "=== Installing Cosmos SDK and Go ==="
 if [ -f /tmp/lib/install-cosmos-sdk.sh ]; then
-    source /tmp/lib/install-cosmos-sdk.sh
-    install_cosmos_sdk
+    bash /tmp/lib/install-cosmos-sdk.sh
 else
     echo "WARNING: install-cosmos-sdk.sh not found"
 fi
 
 echo "=== Installing Caddy ==="
 if [ -f /tmp/lib/install-caddy.sh ]; then
-    source /tmp/lib/install-caddy.sh
-    install_caddy
+    bash /tmp/lib/install-caddy.sh
 else
     echo "WARNING: install-caddy.sh not found"
 fi
 
 echo "=== Building TrustNet Blockchain ==="
 if [ -f /tmp/lib/build-trustnet-blockchain.sh ]; then
-    source /tmp/lib/build-trustnet-blockchain.sh
-    build_trustnet_blockchain
-    initialize_chain
+    bash /tmp/lib/build-trustnet-blockchain.sh
 else
     echo "WARNING: build-trustnet-blockchain.sh not found"
 fi
@@ -599,9 +578,15 @@ REMOTE_SCRIPT
     log_success "Blockchain installation completed on VM"
 }
 
+configure_installed_vm() {
+    log "Configuring installed VM..."
+    # Wait for VM to boot and SSH to be ready
+    distribute_scripts_via_scp
+    log_success "VM configured"
+}
+
 install_blockchain_stack() {
     log "Installing blockchain stack..."
-    distribute_scripts_via_scp
     execute_blockchain_installation
     log_success "Blockchain stack installed"
 }
