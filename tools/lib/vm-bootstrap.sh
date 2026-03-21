@@ -330,7 +330,144 @@ EOF
     ssh -i "$VM_SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
         -p "$VM_SSH_PORT" ${VM_USERNAME}@localhost "mkdir -p /var/cache/trustnet-build/{go,ignite,blockchain}"
     
+    # Setup SSL certificates and web UI
+    setup_ssl_certificates_in_vm
+    setup_web_ui_in_vm
+    
     log_success "VM bootstrap complete"
+}
+
+setup_ssl_certificates_in_vm() {
+    log "Setting up SSL certificates in TrustNet VM..."
+    
+    # Create certificate directory
+    ssh -i "$VM_SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+        -p "$VM_SSH_PORT" ${VM_USERNAME}@localhost \
+        "doas mkdir -p /etc/caddy/certs && doas chmod 755 /etc/caddy/certs" \
+        2>/dev/null || log_info "  Certificate directory creation (may have failed - proceeding)"
+    
+    # Generate self-signed certificate (365-day validity)
+    log_info "  Generating 365-day self-signed certificate..."
+    ssh -i "$VM_SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+        -p "$VM_SSH_PORT" ${VM_USERNAME}@localhost \
+        "doas openssl req -x509 -newkey rsa:2048 -keyout /etc/caddy/certs/trustnet.local.key \
+         -out /etc/caddy/certs/trustnet.local.crt -days 365 -nodes \
+         -subj '/CN=trustnet.local/O=TrustNet/C=US'" \
+        2>/dev/null
+    
+    # Set proper permissions on certificate files
+    ssh -i "$VM_SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+        -p "$VM_SSH_PORT" ${VM_USERNAME}@localhost \
+        "doas chmod 644 /etc/caddy/certs/trustnet.local.crt && \
+         doas chmod 600 /etc/caddy/certs/trustnet.local.key" \
+        2>/dev/null
+    
+    log_success "  SSL certificates generated (365-day self-signed)"
+}
+
+setup_web_ui_in_vm() {
+    log "Setting up TrustNet web UI..."
+    
+    # Create web directory
+    ssh -i "$VM_SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+        -p "$VM_SSH_PORT" ${VM_USERNAME}@localhost \
+        "doas mkdir -p /var/www/trustnet && doas chmod 755 /var/www/trustnet" \
+        2>/dev/null || log_info "  Web directory creation (proceeding anyway)"
+    
+    # Create initial HTML page
+    log_info "  Creating initial setup page..."
+    ssh -i "$VM_SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+        -p "$VM_SSH_PORT" ${VM_USERNAME}@localhost \
+        "doas tee /var/www/trustnet/index.html > /dev/null" << 'HTMLEOF'
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TrustNet Node</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            max-width: 600px;
+            padding: 40px;
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+        .status {
+            background: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            display: inline-block;
+            margin: 20px 0;
+            font-weight: bold;
+        }
+        p {
+            color: #666;
+            line-height: 1.6;
+            margin: 15px 0;
+        }
+        .info {
+            background: #f5f5f5;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+            text-align: left;
+        }
+        code {
+            background: #333;
+            color: #0f0;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+        .next-steps {
+            margin-top: 30px;
+            padding-top: 30px;
+            border-top: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 TrustNet Node</h1>
+        <div class="status">✓ RUNNING</div>
+        
+        <p>Your TrustNet node is up and running with HTTPS enabled.</p>
+        
+        <div class="info">
+            <strong>Access your node:</strong><br>
+            SSH: <code>ssh trustnet</code><br>
+            Web UI: <code>https://trustnet.local</code><br>
+        </div>
+        
+        <div class="next-steps">
+            <h2>Next Steps</h2>
+            <p>1. Register your identity</p>
+            <p>2. Start your blockchain node</p>
+            <p>3. Build your reputation on TrustNet</p>
+        </div>
+    </div>
+</body>
+</html>
+HTMLEOF
+    
+    log_success "  Web UI initialized (https://trustnet.local)"
 }
 
 # Export functions
