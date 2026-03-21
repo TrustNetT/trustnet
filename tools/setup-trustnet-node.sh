@@ -578,13 +578,6 @@ REMOTE_SCRIPT
     log_success "Blockchain installation completed on VM"
 }
 
-configure_installed_vm() {
-    log "Configuring installed VM..."
-    # VM bootstrap: user creation and SSH setup
-    # (warden user is created here in vm-bootstrap.sh)
-    log_success "VM configured"
-}
-
 install_blockchain_stack() {
     log "Installing blockchain stack..."
     # Distribute scripts AFTER warden user is created
