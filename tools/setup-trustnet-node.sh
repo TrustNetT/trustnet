@@ -523,18 +523,27 @@ distribute_scripts_via_scp() {
     # Create lib directory on VM
     ssh -p "$VM_SSH_PORT" "${VM_USERNAME}@localhost" "mkdir -p /tmp/lib" || return 1
     
-    # Copy library scripts from host to VM
+    # Check if library directory exists locally (dev mode)
     local lib_dir="$PROJECT_ROOT/tools/lib"
-    if [ ! -d "$lib_dir" ]; then
-        log_error "Library directory not found: $lib_dir"
-        return 1
+    if [ -d "$lib_dir" ]; then
+        # Use scp to copy all .sh files (with SSH key for warden user)
+        scp -i "$VM_SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            -r -P "$VM_SSH_PORT" "${lib_dir}/"*.sh "${VM_USERNAME}@localhost:/tmp/lib/" || return 1
+        log_success "Scripts distributed to VM (local)"
+    else
+        # One-liner install: download scripts directly from GitHub
+        log_info "Downloading scripts from GitHub (one-liner install)..."
+        ssh -i "$VM_SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            -p "$VM_SSH_PORT" "${VM_USERNAME}@localhost" << 'GITHUB_DOWNLOAD'
+#!/bin/bash
+GITHUB_RAW="https://raw.githubusercontent.com/TrustNetT/trustnet/main/tools/lib"
+for script in common.sh build-trustnet-blockchain.sh install-cosmos-sdk.sh install-caddy.sh install-certificates.sh setup-motd.sh; do
+    curl -fsSL "$GITHUB_RAW/$script" -o "/tmp/lib/$script" || true
+done
+chmod +x /tmp/lib/*.sh
+GITHUB_DOWNLOAD
+        log_success "Scripts downloaded from GitHub"
     fi
-    
-    # Use scp to copy all .sh files (with SSH key for warden user)
-    scp -i "$VM_SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-        -r -P "$VM_SSH_PORT" "${lib_dir}/"*.sh "${VM_USERNAME}@localhost:/tmp/lib/" || return 1
-    
-    log_success "Scripts distributed to VM"
 }
 
 execute_blockchain_installation() {
