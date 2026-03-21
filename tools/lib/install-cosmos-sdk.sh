@@ -323,7 +323,8 @@ func startRPC() error {
     go func() {
         http.Serve(listener, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
             w.Header().Set(\"Content-Type\", \"application/json\")
-            fmt.Fprintf(w, `{\"jsonrpc\":\"2.0\",\"result\":{\"sync_info\":{\"latest_block_height\":\"1\"},\"node_info\":{\"id\":\"trustnet-validator-1\"}}}`)
+            response := `{\"jsonrpc\":\"2.0\",\"result\":{\"sync_info\":{\"latest_block_height\":\"1\"},\"node_info\":{\"id\":\"trustnet-validator-1\"}}}`
+            fmt.Fprint(w, response)
         }))
     }()
     fmt.Println(\"[tendermint] RPC listening on 0.0.0.0:26657\")
@@ -338,7 +339,8 @@ func startAPI() error {
     go func() {
         http.Serve(listener, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
             w.Header().Set(\"Content-Type\", \"application/json\")
-            fmt.Fprintf(w, `{\"blocks\":[{\"header\":{\"height\":\"1\"}}]}`)
+            response := `{\"blocks\":[{\"header\":{\"height\":\"1\"}}]}`
+            fmt.Fprint(w, response)
         }))
     }()
     fmt.Println(\"[cosmos] REST API listening on 0.0.0.0:1317\")
