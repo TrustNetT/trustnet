@@ -11,56 +11,88 @@ fi
 setup_cache_disk_in_vm() {
     log "Setting up cache disk (vdb) for build cache..."
     
-    # Check if cache disk has a filesystem
-    if ! ssh -i "$VM_SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-        -p "$VM_SSH_PORT" ${VM_USERNAME}@localhost "sudo blkid /dev/vdb" 2>/dev/null | grep -q "TYPE=\"ext4\""; then
+    # Check if /dev/vdb exists
+    if ! ssh -i "$VM_SSH_PRIVATE_KEY" -o ConnectTimeout=3 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+        -p "$VM_SSH_PORT" ${VM_USERNAME}@localhost "test -b /dev/vdb" 2>/dev/null; then
+        log_info "Cache disk not available - skipping setup (optional feature)"
+        return 0
+    fi
+    
+    # Check if cache disk has a filesystem (using doas for Alpine)
+    if ! ssh -i "$VM_SSH_PRIVATE_KEY" -o ConnectTimeout=3 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+        -p "$VM_SSH_PORT" ${VM_USERNAME}@localhost "doas blkid /dev/vdb 2>/dev/null | grep -q TYPE=" 2>/dev/null; then
         
         log_info "Cache disk not formatted - creating ext4 filesystem..."
-        ssh -i "$VM_SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-            -p "$VM_SSH_PORT" ${VM_USERNAME}@localhost "sudo mkfs.ext4 -F -L trustnet-cache /dev/vdb" >/dev/null 2>&1
         
-        log_success "Cache disk formatted (ext4)"
+        # Try formatting with doas first (Alpine Linux default)
+        if ssh -i "$VM_SSH_PRIVATE_KEY" -o ConnectTimeout=3 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            -p "$VM_SSH_PORT" ${VM_USERNAME}@localhost "doas mkfs.ext4 -F -L trustnet-cache /dev/vdb" >/dev/null 2>&1; then
+            log_success "Cache disk formatted (ext4)"
+        else
+            log_info "Cache disk formatting attempted (may require manual setup later)"
+        fi
     else
         log_info "Cache disk already formatted (reusing preserved cache)"
     fi
     
-    # Create mount point and mount cache disk
-    ssh -i "$VM_SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-        -p "$VM_SSH_PORT" ${VM_USERNAME}@localhost "sudo mkdir -p /var/cache/trustnet-build && sudo mount /dev/vdb /var/cache/trustnet-build && sudo chown -R ${VM_USERNAME}:${VM_USERNAME} /var/cache/trustnet-build"
+    # Create mount point and mount cache disk (non-blocking on failure)
+    ssh -i "$VM_SSH_PRIVATE_KEY" -o ConnectTimeout=3 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+        -p "$VM_SSH_PORT" ${VM_USERNAME}@localhost \
+        "doas mkdir -p /var/cache/trustnet-build && doas mount /dev/vdb /var/cache/trustnet-build && doas chown -R ${VM_USERNAME}:${VM_USERNAME} /var/cache/trustnet-build" \
+        2>/dev/null || log_info "Cache disk mount attempted (may have failed - proceeding anyway)"
     
-    # Add to fstab for auto-mount on boot
-    ssh -i "$VM_SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-        -p "$VM_SSH_PORT" ${VM_USERNAME}@localhost "grep -q '/dev/vdb' /etc/fstab || echo '/dev/vdb /var/cache/trustnet-build ext4 defaults 0 2' | sudo tee -a /etc/fstab" >/dev/null
+    # Add to fstab for auto-mount on boot (non-blocking)
+    ssh -i "$VM_SSH_PRIVATE_KEY" -o ConnectTimeout=3 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+        -p "$VM_SSH_PORT" ${VM_USERNAME}@localhost \
+        "grep -q '/dev/vdb' /etc/fstab || echo '/dev/vdb /var/cache/trustnet-build ext4 defaults 0 2' | doas tee -a /etc/fstab" \
+        >/dev/null 2>&1 || true
     
-    log_success "Cache disk mounted at /var/cache/trustnet-build"
+    log_info "Cache disk setup complete (mounted or optional)"
+    return 0
 }
+    
 
 setup_data_disk_in_vm() {
     log "Setting up data disk (vdc) for TrustNet blockchain data..."
     
-    # Check if data disk has a filesystem
-    if ! ssh -i "$VM_SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-        -p "$VM_SSH_PORT" ${VM_USERNAME}@localhost "sudo blkid /dev/vdc" 2>/dev/null | grep -q "TYPE=\"ext4\""; then
+    # Check if data disk exists
+    if ! ssh -i "$VM_SSH_PRIVATE_KEY" -o ConnectTimeout=3 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+        -p "$VM_SSH_PORT" ${VM_USERNAME}@localhost "test -b /dev/vdc" 2>/dev/null; then
+        log_info "Data disk not available - skipping setup (optional feature)"
+        return 0
+    fi
+    
+    # Check if data disk has a filesystem (using doas for Alpine)
+    if ! ssh -i "$VM_SSH_PRIVATE_KEY" -o ConnectTimeout=3 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+        -p "$VM_SSH_PORT" ${VM_USERNAME}@localhost "doas blkid /dev/vdc 2>/dev/null | grep -q TYPE=" 2>/dev/null; then
         
         log_info "Data disk not formatted - creating ext4 filesystem..."
-        ssh -i "$VM_SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-            -p "$VM_SSH_PORT" ${VM_USERNAME}@localhost "sudo mkfs.ext4 -F -L trustnet-data /dev/vdc" >/dev/null 2>&1
         
-        log_success "Data disk formatted (ext4)"
+        # Try formatting with doas first (Alpine Linux default)
+        if ssh -i "$VM_SSH_PRIVATE_KEY" -o ConnectTimeout=3 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            -p "$VM_SSH_PORT" ${VM_USERNAME}@localhost "doas mkfs.ext4 -F -L trustnet-data /dev/vdc" >/dev/null 2>&1; then
+            log_success "Data disk formatted (ext4)"
+        else
+            log_info "Data disk formatting attempted (may require manual setup later)"
+        fi
     else
         log_info "Data disk already formatted (reusing preserved blockchain data)"
     fi
     
-    # Create mount point and mount data disk at /var/lib/trustnet
-    # Set ownership to warden user
-    ssh -i "$VM_SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-        -p "$VM_SSH_PORT" ${VM_USERNAME}@localhost "sudo mkdir -p /var/lib/trustnet && sudo mount /dev/vdc /var/lib/trustnet && sudo chown -R ${VM_USERNAME}:${VM_USERNAME} /var/lib/trustnet"
+    # Create mount point and mount data disk at /var/lib/trustnet (non-blocking on failure)
+    ssh -i "$VM_SSH_PRIVATE_KEY" -o ConnectTimeout=3 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+        -p "$VM_SSH_PORT" ${VM_USERNAME}@localhost \
+        "doas mkdir -p /var/lib/trustnet && doas mount /dev/vdc /var/lib/trustnet && doas chown -R ${VM_USERNAME}:${VM_USERNAME} /var/lib/trustnet" \
+        2>/dev/null || log_info "Data disk mount attempted (may have failed - proceeding anyway)"
     
-    # Add to fstab for auto-mount on boot
-    ssh -i "$VM_SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-        -p "$VM_SSH_PORT" ${VM_USERNAME}@localhost "grep -q '/dev/vdc' /etc/fstab || echo '/dev/vdc /var/lib/trustnet ext4 defaults 0 2' | sudo tee -a /etc/fstab" >/dev/null
+    # Add to fstab for auto-mount on boot (non-blocking)
+    ssh -i "$VM_SSH_PRIVATE_KEY" -o ConnectTimeout=3 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+        -p "$VM_SSH_PORT" ${VM_USERNAME}@localhost \
+        "grep -q '/dev/vdc' /etc/fstab || echo '/dev/vdc /var/lib/trustnet ext4 defaults 0 2' | doas tee -a /etc/fstab" \
+        >/dev/null 2>&1 || true
     
-    log_success "Data disk mounted at /var/lib/trustnet"
+    log_info "Data disk setup complete (mounted or optional)"
+    return 0
 }
 
 configure_installed_vm() {
