@@ -580,13 +580,15 @@ REMOTE_SCRIPT
 
 configure_installed_vm() {
     log "Configuring installed VM..."
-    # Wait for VM to boot and SSH to be ready
-    distribute_scripts_via_scp
+    # VM bootstrap: user creation and SSH setup
+    # (warden user is created here in vm-bootstrap.sh)
     log_success "VM configured"
 }
 
 install_blockchain_stack() {
     log "Installing blockchain stack..."
+    # Distribute scripts AFTER warden user is created
+    distribute_scripts_via_scp
     execute_blockchain_installation
     log_success "Blockchain stack installed"
 }
