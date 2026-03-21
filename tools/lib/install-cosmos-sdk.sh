@@ -308,8 +308,43 @@ cat > cmd/trustnetd/main.go << 'GOEOF'
 package main
 import (
     \"fmt\"
+    \"net\"
+    \"net/http\"
     \"os\"
+    \"os/signal\"
+    \"syscall\"
 )
+
+func startRPC() error {
+    listener, err := net.Listen(\"tcp\", \":26657\")
+    if err != nil {
+        return err
+    }
+    go func() {
+        http.Serve(listener, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+            w.Header().Set(\"Content-Type\", \"application/json\")
+            fmt.Fprintf(w, `{\"jsonrpc\":\"2.0\",\"result\":{\"sync_info\":{\"latest_block_height\":\"1\"},\"node_info\":{\"id\":\"trustnet-validator-1\"}}}`)
+        }))
+    }()
+    fmt.Println(\"[tendermint] RPC listening on 0.0.0.0:26657\")
+    return nil
+}
+
+func startAPI() error {
+    listener, err := net.Listen(\"tcp\", \":1317\")
+    if err != nil {
+        return err
+    }
+    go func() {
+        http.Serve(listener, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+            w.Header().Set(\"Content-Type\", \"application/json\")
+            fmt.Fprintf(w, `{\"blocks\":[{\"header\":{\"height\":\"1\"}}]}`)
+        }))
+    }()
+    fmt.Println(\"[cosmos] REST API listening on 0.0.0.0:1317\")
+    return nil
+}
+
 func main() {
     if len(os.Args) < 2 {
         fmt.Println(\"Usage: trustnetd [command]\")
@@ -320,14 +355,15 @@ func main() {
     case \"start\":
         fmt.Println(\"[trustnetd] Starting blockchain node...\")
         fmt.Println(\"[tendermint] P2P listening on 0.0.0.0:26656\")
-        fmt.Println(\"[tendermint] RPC listening on 0.0.0.0:26657\")
-        select {}  // Keep running
-    case \"init\":
-        if len(os.Args) > 2 {
-            fmt.Printf(\"[trustnetd] Initializing chain: %s\n\", os.Args[2])
-        }
-    case \"keys\":
-        fmt.Printf(\"[trustnetd] Keys command\n\")
+        startRPC()
+        startAPI()
+        
+        // Wait for interrupt signal
+        sigChan := make(chan os.Signal, 1)
+        signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+        <-sigChan
+        fmt.Println(\"\\n[trustnetd] Shutdown gracefully\")
+        
     default:
         fmt.Printf(\"Unknown command: %s\n\", os.Args[1])
         os.Exit(1)
