@@ -580,6 +580,7 @@ REMOTE_SCRIPT
 
 install_blockchain_stack() {
     log "Installing blockchain stack..."
+    distribute_scripts_via_scp
     execute_blockchain_installation
     log_success "Blockchain stack installed"
 }
