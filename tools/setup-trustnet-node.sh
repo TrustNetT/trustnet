@@ -490,6 +490,116 @@ stop_existing_vm() {
 }
 
 ################################################################################
+# VM-Side Installation Orchestration
+################################################################################
+
+distribute_scripts_via_scp() {
+    log "Distributing installation scripts to VM..."
+    
+    # Wait for SSH to be available
+    local max_attempts=60
+    local attempt=0
+    while [ $attempt -lt $max_attempts ]; do
+        if ssh -o ConnectTimeout=5 -p "$VM_SSH_PORT" "${VM_USERNAME}@localhost" "echo 'SSH OK'" >/dev/null 2>&1; then
+            log_success "SSH is ready"
+            break
+        fi
+        attempt=$((attempt + 1))
+        if [ $((attempt % 10)) -eq 0 ]; then
+            log_info "Waiting for SSH... ($attempt/$max_attempts)"
+        fi
+        sleep 2
+    done
+    
+    if [ $attempt -ge $max_attempts ]; then
+        log_error "VM did not become SSH-accessible after $max_attempts attempts"
+        return 1
+    fi
+    
+    # Create lib directory on VM
+    ssh -p "$VM_SSH_PORT" "${VM_USERNAME}@localhost" "mkdir -p /tmp/lib" || return 1
+    
+    # Copy library scripts from host to VM
+    local lib_dir="$PROJECT_ROOT/tools/lib"
+    if [ ! -d "$lib_dir" ]; then
+        log_error "Library directory not found: $lib_dir"
+        return 1
+    fi
+    
+    # Use scp to copy all .sh files
+    scp -r -P "$VM_SSH_PORT" "${lib_dir}/"*.sh "${VM_USERNAME}@localhost:/tmp/lib/" || return 1
+    
+    log_success "Scripts distributed to VM"
+}
+
+execute_blockchain_installation() {
+    log "Executing blockchain installation on VM..."
+    
+    # Create a simple orchestrator script on the VM that sources and runs the installations
+    ssh -p "$VM_SSH_PORT" "${VM_USERNAME}@localhost" "bash" << 'REMOTE_SCRIPT'
+#!/bin/bash
+set -euo pipefail
+
+# Source common functions
+source /tmp/lib/common.sh 2>/dev/null || true
+
+# Make all lib scripts executable
+chmod +x /tmp/lib/*.sh
+
+# Run installations sequentially
+echo "=== Installing Cosmos SDK and Go ==="
+if [ -f /tmp/lib/install-cosmos-sdk.sh ]; then
+    bash /tmp/lib/install-cosmos-sdk.sh
+else
+    echo "WARNING: install-cosmos-sdk.sh not found"
+fi
+
+echo "=== Installing Caddy ==="
+if [ -f /tmp/lib/install-caddy.sh ]; then
+    bash /tmp/lib/install-caddy.sh
+else
+    echo "WARNING: install-caddy.sh not found"
+fi
+
+echo "=== Building TrustNet Blockchain ==="
+if [ -f /tmp/lib/build-trustnet-blockchain.sh ]; then
+    bash /tmp/lib/build-trustnet-blockchain.sh
+else
+    echo "WARNING: build-trustnet-blockchain.sh not found"
+fi
+
+echo "=== Installation Complete ==="
+REMOTE_SCRIPT
+    
+    log_success "Blockchain installation completed on VM"
+}
+
+configure_installed_vm() {
+    log "Configuring installed VM..."
+    # Wait for VM to boot and SSH to be ready
+    distribute_scripts_via_scp
+    log_success "VM configured"
+}
+
+install_blockchain_stack() {
+    log "Installing blockchain stack..."
+    execute_blockchain_installation
+    log_success "Blockchain stack installed"
+}
+
+install_caddy_via_ssh() {
+    log "Caddy installation handled by blockchain_stack phase"
+}
+
+install_certificates_on_host() {
+    log "Certificate installation deferred"
+}
+
+setup_motd_via_ssh() {
+    log "MOTD setup deferred"
+}
+
+################################################################################
 # Main Installation Flow
 ################################################################################
 
