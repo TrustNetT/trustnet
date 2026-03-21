@@ -133,42 +133,7 @@ EOF
     
     log_success "TrustNet configuration created"
     
-    # Create TrustNet systemd service
-    log_info "Creating TrustNet systemd service..."
-    
-    ssh -i "$VM_SSH_PRIVATE_KEY" -p "$VM_SSH_PORT" \
-        -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-        -o IdentitiesOnly=yes \
-        -o ConnectTimeout=60 -o ServerAliveInterval=30 \
-        ${VM_USERNAME}@localhost << EOF
-cat > /tmp/trustnet-service << 'SERVICE_EOF'
-#!/sbin/openrc-run
-
-name="TrustNet Node"
-description="TrustNet Blockchain Client"
-
-command="/home/${VM_USERNAME}/trustnet/bin/trustnetd"
-command_args="start --home /home/${VM_USERNAME}/trustnet"
-command_user="${VM_USERNAME}:${VM_USERNAME}"
-command_background="yes"
-pidfile="/run/trustnet.pid"
-
-depend() {
-    need net
-    after caddy
-}
-
-start_pre() {
-    checkpath --directory --owner ${VM_USERNAME}:${VM_USERNAME} --mode 0755 /home/${VM_USERNAME}/trustnet/data
-}
-SERVICE_EOF
-
-sudo mv /tmp/trustnet-service /etc/init.d/trustnet
-sudo chmod +x /etc/init.d/trustnet
-sudo rc-update add trustnet default
-EOF
-    
-    log_success "TrustNet service configured (will start after blockchain client is built)"
+    log_success "TrustNet configuration created"
 }
 
 install_trustnet_web_ui() {
@@ -418,6 +383,7 @@ depend() {
 RCEOF
 
 sudo chmod +x /etc/init.d/trustnet
+sudo rc-update add trustnet default
 sudo rc-service trustnet start || true
 echo \"[trustnet] Blockchain services started\"
 "
