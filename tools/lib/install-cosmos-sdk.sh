@@ -321,6 +321,9 @@ build_trustnet_blockchain_inside_vm() {
     ssh_exec "
 set -e
 
+# Ensure Go is in PATH (installed by install_cosmos_sdk)
+export PATH=\$PATH:/usr/local/go/bin:\$HOME/go/bin
+
 # Create project structure
 mkdir -p /tmp/trustnet-build
 cd /tmp/trustnet-build
