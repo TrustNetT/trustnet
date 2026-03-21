@@ -448,6 +448,47 @@ print_completion_message() {
     log ""
 }
 
+stop_existing_vm() {
+    log_info "Checking for existing TrustNet VM..."
+    
+    # Check if stop script already exists (from previous install)
+    if [ -f "${VM_DIR}/stop-trustnet.sh" ]; then
+        # Try using the stop script
+        if bash "${VM_DIR}/stop-trustnet.sh" 2>/dev/null | grep -q "Stopping\|stopped"; then
+            sleep 2
+            log_success "Existing VM stopped gracefully"
+            return 0
+        fi
+    fi
+    
+    # Check if PID file exists from previous run
+    local pid_file="${VM_DIR}/trustnet.pid"
+    if [ -f "$pid_file" ]; then
+        local pid=$(cat "$pid_file" 2>/dev/null)
+        if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+            log_warning "Found running TrustNet VM (PID: $pid)"
+            log_info "Stopping existing VM..."
+            kill "$pid" 2>/dev/null || true
+            rm -f "$pid_file"
+            sleep 2
+            log_success "Existing VM stopped"
+            return 0
+        fi
+    fi
+    
+    # Check if any QEMU process is using our disk
+    if pgrep -f "trustnet.qcow2" >/dev/null 2>&1; then
+        log_warning "Found QEMU process using TrustNet disks"
+        log_info "Stopping QEMU..."
+        pkill -f "trustnet.qcow2" 2>/dev/null || true
+        sleep 2
+        log_success "QEMU stopped"
+        return 0
+    fi
+    
+    log_info "No existing VM running"
+}
+
 ################################################################################
 # Main Installation Flow
 ################################################################################
@@ -481,6 +522,9 @@ main() {
     # Setup for VM creation
     ensure_qemu
     setup_ssh_keys
+    
+    # Stop any existing VM before creating a fresh installation
+    stop_existing_vm
     
     # Phase 1: Download and cache Alpine
     download_alpine
