@@ -555,7 +555,7 @@ set -euo pipefail
 
 # Override ssh_exec to run commands directly (we're already on the VM)
 ssh_exec() {
-    bash -c "\$@"
+    "$@"
 }
 export -f ssh_exec
 
