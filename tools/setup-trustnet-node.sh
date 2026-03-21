@@ -553,19 +553,8 @@ execute_blockchain_installation() {
 #!/bin/bash
 set -euo pipefail
 
-# Set variables for remote context
-export VM_SSH_PRIVATE_KEY="${SSH_KEY:-}"
-export VM_SSH_PORT="${VM_SSH_PORT:-2223}"
-export VM_USERNAME="${VM_USERNAME:-warden}"
-
 # Source common functions
 source /tmp/lib/common.sh 2>/dev/null || true
-
-# Override ssh_exec AFTER sourcing common.sh (we're already on the VM)
-ssh_exec() {
-    "$@"
-}
-export -f ssh_exec
 
 # Make all lib scripts executable
 chmod +x /tmp/lib/*.sh
