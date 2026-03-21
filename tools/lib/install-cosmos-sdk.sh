@@ -412,8 +412,6 @@ command=/home/warden/trustnetd
 command_args=\"start\"
 command_user=warden
 pidfile=/var/run/trustnet.pid
-output_log=/var/log/trustnet.log
-error_log=/var/log/trustnet-error.log
 depend() {
     need net
 }
