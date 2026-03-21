@@ -93,7 +93,7 @@ VM_DIR="${HOME}/vms/trustnet"
 VM_NAME="trustnet"
 VM_MEMORY="2G"
 VM_CPUS="2"
-VM_SSH_PORT="${VM_SSH_PORT:-2223}"
+VM_SSH_PORT="2223"
 
 # TrustNet Node Configuration
 VM_HOSTNAME="trustnet.local"
@@ -304,116 +304,7 @@ EOF
 
     chmod +x "${VM_DIR}/stop-trustnet.sh"
     
-    # Create status script
-    cat > "${VM_DIR}/status-trustnet.sh" << 'EOF'
-#!/bin/bash
-#
-# TrustNet Status Check Script
-# Safely checks if TrustNet VM is running and accessible
-#
-
-VMDIR="${HOME}/vms/trustnet"
-VM_PORT=2223
-VM_HOSTNAME="trustnet.local"
-VM_USER="warden"
-
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
-
-echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
-echo -e "${BLUE}  TrustNet VM Status Check${NC}"
-echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
-echo ""
-
-# Check 1: SSH Port availability
-echo -n "Checking port $VM_PORT... "
-if nc -z localhost $VM_PORT 2>/dev/null; then
-    echo -e "${GREEN}✓ Port is OPEN${NC}"
-    PORT_OPEN=1
-else
-    echo -e "${RED}✗ Port is CLOSED${NC}"
-    PORT_OPEN=0
-fi
-
-# Check 2: SSH Connectivity
-if [ $PORT_OPEN -eq 1 ]; then
-    echo -n "Testing SSH connectivity... "
-    if timeout 3 ssh -o ConnectTimeout=3 -o StrictHostKeyChecking=no \
-        -o UserKnownHostsFile=/dev/null \
-        -p $VM_PORT "$VM_USER@$VM_HOSTNAME" "echo OK" 2>/dev/null > /dev/null; then
-        echo -e "${GREEN}✓ SSH RESPONDING${NC}"
-        SSH_OK=1
-    else
-        echo -e "${YELLOW}⚠ SSH NOT RESPONDING${NC}"
-        SSH_OK=0
-    fi
-else
-    echo -e "${YELLOW}⚠ Skipping SSH test (port closed)${NC}"
-    SSH_OK=0
-fi
-
-# Check 3: QEMU Process
-echo -n "Checking QEMU process... "
-PID_FILE="${VMDIR}/trustnet.pid"
-if [ -f "$PID_FILE" ] && sudo kill -0 $(cat "$PID_FILE") 2>/dev/null; then
-    echo -e "${GREEN}✓ QEMU RUNNING${NC}"
-    QEMU_RUNNING=1
-else
-    echo -e "${RED}✗ QEMU NOT RUNNING${NC}"
-    QEMU_RUNNING=0
-fi
-
-# Check 4: VM Disk Files
-echo -n "Checking VM disk files... "
-DISKS_OK=1
-if [ ! -f "$VMDIR/trustnet.qcow2" ]; then
-    echo -e "${RED}✗ System disk missing${NC}"
-    DISKS_OK=0
-elif [ ! -f "$VMDIR/trustnet-cache.qcow2" ]; then
-    echo -e "${YELLOW}⚠ Cache disk missing (optional)${NC}"
-elif [ ! -f "$VMDIR/trustnet-data.qcow2" ]; then
-    echo -e "${YELLOW}⚠ Data disk missing (optional)${NC}"
-else
-    echo -e "${GREEN}✓ All disk files present${NC}"
-fi
-
-# Summary
-echo ""
-echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
-echo "Status Summary:"
-echo -e "${BLUE}─────────────────────────────────────────────────────────${NC}"
-
-if [ $QEMU_RUNNING -eq 1 ] && [ $SSH_OK -eq 1 ]; then
-    echo -e "${GREEN}✓ TrustNet VM is RUNNING and ACCESSIBLE${NC}"
-    echo "  Command: ssh -p $VM_PORT $VM_USER@$VM_HOSTNAME"
-    EXIT_CODE=0
-elif [ $QEMU_RUNNING -eq 1 ] && [ $PORT_OPEN -eq 1 ]; then
-    echo -e "${YELLOW}⚠ TrustNet VM is RUNNING but SSH is NOT RESPONDING${NC}"
-    echo "  (VM may still be booting, try again in 30 seconds)"
-    EXIT_CODE=1
-elif [ $QEMU_RUNNING -eq 1 ]; then
-    echo -e "${YELLOW}⚠ TrustNet VM is RUNNING but PORT is CLOSED${NC}"
-    echo "  (Check QEMU configuration)"
-    EXIT_CODE=2
-else
-    echo -e "${RED}✗ TrustNet VM is NOT RUNNING${NC}"
-    echo "  To start: bash $VMDIR/start-trustnet.sh"
-    EXIT_CODE=3
-fi
-
-echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
-echo ""
-
-exit $EXIT_CODE
-EOF
-
-    chmod +x "${VM_DIR}/status-trustnet.sh"
-    
-    log_success "Start/stop/status scripts created"
+    log_success "Start/stop scripts created"
 }
 
 configure_ssh_on_host() {
@@ -510,6 +401,141 @@ EOF
     log_success "Credentials saved to ${VM_DIR}/credentials.txt"
 }
 
+generate_start_script() {
+    log "Generating management scripts..."
+    
+    # Create start-trustnet.sh
+    cat > "${VM_DIR}/start-trustnet.sh" << 'SCRIPT_EOF'
+#!/bin/bash
+# Start TrustNet VM
+# Usage: ./start-trustnet.sh
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VM_NAME="trustnet"
+VM_DISK="${SCRIPT_DIR}/trustnet.qcow2"
+
+if [ ! -f "$VM_DISK" ]; then
+    echo "Error: VM disk not found at $VM_DISK"
+    exit 1
+fi
+
+echo "Starting TrustNet VM..."
+qemu-system-x86_64 \
+    -name "$VM_NAME" \
+    -m 2G \
+    -smp 2 \
+    -drive file="$VM_DISK",format=qcow2,if=virtio \
+    -netdev user,id=net0,hostfwd=tcp:127.0.0.1:2223-:22 \
+    -device virtio-net-pci,netdev=net0 \
+    -daemonize
+
+echo "VM started. Connect with: ssh trustnet"
+SCRIPT_EOF
+    chmod +x "${VM_DIR}/start-trustnet.sh"
+    
+    # Create stop-trustnet.sh
+    cat > "${VM_DIR}/stop-trustnet.sh" << 'SCRIPT_EOF'
+#!/bin/bash
+# Stop TrustNet VM gracefully
+# Usage: ./stop-trustnet.sh
+
+VM_USERNAME="${VM_USERNAME:-warden}"
+VM_HOSTNAME="${VM_HOSTNAME:-trustnet.local}"
+VM_SSH_PORT="${VM_SSH_PORT:-2223}"
+
+echo "Stopping TrustNet VM gracefully..."
+
+# Try SSH shutdown first
+if timeout 5 ssh -o ConnectTimeout=3 -o StrictHostKeyChecking=no \
+    -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" \
+    "sudo shutdown -h now" 2>/dev/null; then
+    echo "VM shutdown command sent. Waiting for shutdown..."
+    sleep 5
+    
+    # Check if still running
+    if pgrep -f "qemu-system.*trustnet" > /dev/null; then
+        echo "VM still running, sending SIGTERM..."
+        pkill -f "qemu-system.*trustnet"
+        sleep 2
+    fi
+else
+    echo "SSH unavailable, forcing shutdown..."
+    pkill -f "qemu-system.*trustnet" || true
+    sleep 1
+fi
+
+if pgrep -f "qemu-system.*trustnet" > /dev/null; then
+    echo "VM still running, forcing kill..."
+    pkill -9 -f "qemu-system.*trustnet"
+fi
+
+echo "VM stopped"
+SCRIPT_EOF
+    chmod +x "${VM_DIR}/stop-trustnet.sh"
+    
+    # Create status-trustnet.sh
+    cat > "${VM_DIR}/status-trustnet.sh" << 'SCRIPT_EOF'
+#!/bin/bash
+# Check TrustNet VM status
+# Usage: ./status-trustnet.sh
+
+VM_USERNAME="${VM_USERNAME:-warden}"
+VM_HOSTNAME="${VM_HOSTNAME:-trustnet.local}"
+VM_SSH_PORT="${VM_SSH_PORT:-2223}"
+
+echo "TrustNet VM Status"
+echo "=================="
+echo ""
+
+# Check QEMU process
+if pgrep -f "qemu-system.*trustnet" > /dev/null; then
+    echo "✓ QEMU Process: Running"
+else
+    echo "✗ QEMU Process: Stopped"
+    exit 0
+fi
+
+# Check SSH connectivity
+if timeout 3 ssh -o ConnectTimeout=3 -o StrictHostKeyChecking=no \
+    -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" "echo OK" 2>/dev/null; then
+    echo "✓ SSH Access: OK"
+    
+    # Get uptime via SSH
+    UPTIME=$(ssh -o ConnectTimeout=3 -o StrictHostKeyChecking=no \
+        -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" "uptime" 2>/dev/null | cut -d',' -f1)
+    echo "→ Uptime: $UPTIME"
+    
+    # Check blockchain service
+    if ssh -o ConnectTimeout=3 -o StrictHostKeyChecking=no \
+        -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" \
+        "[ -d /opt/trustnet ]" 2>/dev/null; then
+        echo "✓ TrustNet Blockchain: Installed"
+    else
+        echo "✗ TrustNet Blockchain: Not found"
+    fi
+    
+    # Check web UI
+    if timeout 3 curl -sf https://localhost:8443 -k >/dev/null 2>&1; then
+        echo "✓ Web UI (HTTPS): OK"
+    else
+        echo "✗ Web UI (HTTPS): Unreachable"
+    fi
+else
+    echo "✗ SSH Access: Cannot connect"
+fi
+
+echo ""
+echo "SSH Command: ssh -p $VM_SSH_PORT $VM_USERNAME@$VM_HOSTNAME"
+echo "Web UI: https://$VM_HOSTNAME"
+SCRIPT_EOF
+    chmod +x "${VM_DIR}/status-trustnet.sh"
+    
+    log_success "Management scripts created:"
+    log "  Start:  ${VM_DIR}/start-trustnet.sh"
+    log "  Stop:   ${VM_DIR}/stop-trustnet.sh"
+    log "  Status: ${VM_DIR}/status-trustnet.sh"
+}
+
 print_completion_message() {
     log ""
     log "╔══════════════════════════════════════════════════════════════════════╗"
@@ -603,6 +629,11 @@ main() {
     
     # Phase 8: Configure host SSH and save credentials
     configure_ssh_on_host
+    
+    # Phase 9: Generate management scripts
+    generate_start_script
+    
+    # Save final credentials
     save_credentials
     
     # Completion

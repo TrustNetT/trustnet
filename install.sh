@@ -1,18 +1,18 @@
 #!/bin/bash
 #
 # TrustNet Node One-Liner Installer
-# Usage: curl -fsSL https://raw.githubusercontent.com/TrustNetT/trustnet/main/install.sh | bash
-# Version: 1.1.0 (latest production)
+# Usage: curl -fsSL https://raw.githubusercontent.com/jcgarcia/TrustNet/main/install.sh | bash
+# Version: 1.0.0
 #
 
 set -e
 
-REPO_URL="https://github.com/TrustNetT/trustnet.git"
-RAW_URL="https://raw.githubusercontent.com/TrustNetT/trustnet"
+REPO_URL="https://github.com/jcgarcia/TrustNet.git"
+RAW_URL="https://raw.githubusercontent.com/jcgarcia/TrustNet"
 REPO_DIR="$HOME/trustnet"
 BRANCH="${TRUSTNET_BRANCH:-main}"
 
-# Setup logging (persistent internal state)
+# Setup logging
 LOG_DIR="${HOME}/.trustnet/logs"
 LOG_FILE="${LOG_DIR}/install-$(date +%Y%m%d-%H%M%S).log"
 mkdir -p "$LOG_DIR"
@@ -206,6 +206,8 @@ if timeout 3 ssh -o ConnectTimeout=3 -o StrictHostKeyChecking=no -o UserKnownHos
     VM_ALREADY_EXISTS=1
 fi
 
+log ""
+
 # Download latest scripts (always get fresh version)
 log "→ Downloading latest scripts..."
 
@@ -266,251 +268,5 @@ log ""
 # Export log file for setup script
 export TRUSTNET_LOG_FILE="$LOG_FILE"
 
-
-# ============================================================================
-# VM DETECTION: Check if VM already exists on configured port
-# ============================================================================
-log ""
-if [ $VM_ALREADY_EXISTS -eq 1 ]; then
-    log "✓ Existing TrustNet VM found on port $VM_SSH_PORT"
-    log "  Skipping VM creation - using existing node"
-    BASE_INSTALL_RESULT=0
-else
-    log "→ Creating new TrustNet VM on port $VM_SSH_PORT (this will take 3-5 minutes)..."
-    
-    # Run the setup script with port and --auto flag
-    VM_SSH_PORT="$VM_SSH_PORT" ./setup-trustnet-node.sh --auto
-    BASE_INSTALL_RESULT=$?
-    
-    if [ $BASE_INSTALL_RESULT -ne 0 ]; then
-        log_error "Base installation failed (exit code: $BASE_INSTALL_RESULT)"
-        exit $BASE_INSTALL_RESULT
-    fi
-fi
-
-log ""
-log "╔══════════════════════════════════════════════════════════╗"
-log "║  Base Installation Complete - Starting v1.1.0 Deployment ║"
-log "╚══════════════════════════════════════════════════════════╝"
-log ""
-
-# Deploy v1.1.0 components
-log "→ Downloading v1.1.0 components..."
-
-mkdir -p v1.1.0-components
-cd v1.1.0-components
-
-# Download v1.1.0 components from repository
-COMPONENTS=(
-    "core/versions/v1.1.0/api/setup_api.py:api/setup.py"
-    "core/versions/v1.1.0/web/templates/first-setup.html:web/first-setup.html"
-    "core/versions/v1.1.0/setup-requirements.txt:setup-requirements.txt"
-)
-
-for component_spec in "${COMPONENTS[@]}"; do
-    IFS=':' read -r source dest <<< "$component_spec"
-    if ! curl -fsSL "$RAW_URL/$BRANCH/$source?nocache=$(date +%s)" -o "$dest"; then
-        log_error "Failed to download: $source"
-        exit 1
-    fi
-done
-
-log "✓ v1.1.0 components downloaded"
-
-# Create local directories for v1.1.0
-VM_DIR="${HOME}/vms/trustnet"
-API_DIR="$VM_DIR/api"
-WEB_DIR="$VM_DIR/web"
-mkdir -p "$API_DIR" "$WEB_DIR/templates"
-
-# Copy components to VM directory
-cp api/setup.py "$API_DIR/" 2>/dev/null || log "Warning: Could not copy setup.py"
-cp web/first-setup.html "$WEB_DIR/templates/" 2>/dev/null || log "Warning: Could not copy first-setup.html"
-cp setup-requirements.txt "$API_DIR/requirements.txt" 2>/dev/null || log "Warning: Could not copy requirements.txt"
-
-log "✓ v1.1.0 files staged locally"
-
-# Deploy to VM via SSH
-log ""
-log "→ Deploying v1.1.0 to running VM..."
-
-# Test SSH connectivity (should be available whether VM was just created or pre-existing)
-if ! ssh -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" "echo OK" &>/dev/null; then
-    log_error "Cannot connect to VM at $VM_USERNAME@$VM_HOSTNAME:$VM_SSH_PORT"
-    log "Ensure base installation completed successfully"
-    exit 1
-fi
-
-log "✓ SSH connectivity verified"
-
-# Create directories on VM
-ssh -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" "mkdir -p /opt/trustnet/api /opt/trustnet/web/templates" 2>/dev/null || true
-
-# Deploy setup.py
-if [ -f "$API_DIR/setup.py" ]; then
-    scp -P "$VM_SSH_PORT" "$API_DIR/setup.py" "$VM_USERNAME@$VM_HOSTNAME:/opt/trustnet/api/" 2>/dev/null && \
-    log "✓ Deployed setup.py" || \
-    log "Warning: Failed to SCP setup.py"
-fi
-
-# Deploy first-setup.html
-if [ -f "$WEB_DIR/templates/first-setup.html" ]; then
-    scp -P "$VM_SSH_PORT" "$WEB_DIR/templates/first-setup.html" "$VM_USERNAME@$VM_HOSTNAME:/opt/trustnet/web/templates/" 2>/dev/null && \
-    log "✓ Deployed first-setup.html" || \
-    log "Warning: Failed to SCP first-setup.html"
-fi
-
-# Deploy requirements.txt
-if [ -f "$API_DIR/requirements.txt" ]; then
-    scp -P "$VM_SSH_PORT" "$API_DIR/requirements.txt" "$VM_USERNAME@$VM_HOSTNAME:/tmp/requirements.txt" 2>/dev/null && \
-    log "✓ Deployed requirements.txt" || \
-    log "Warning: Failed to SCP requirements.txt"
-fi
-
-# Install FastAPI on VM
-log ""
-log "→ Installing FastAPI dependencies on VM..."
-
-ssh -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" << 'SSH_INSTALL_FASTAPI'
-#!/bin/bash
-if command -v apk &> /dev/null; then
-    doas apk add --no-cache python3 python3-dev py3-pip libjpeg zlib-dev gcc musl-dev 2>/dev/null || true
-    doas pip install --no-cache -r /tmp/requirements.txt 2>/dev/null || true
-elif command -v apt &> /dev/null; then
-    sudo apt-get update 2>/dev/null || true
-    sudo apt-get install -y python3-pip python3-dev libjpeg-dev zlib1g-dev 2>/dev/null || true
-    sudo pip3 install -r /tmp/requirements.txt 2>/dev/null || true
-fi
-SSH_INSTALL_FASTAPI
-
-log "✓ FastAPI installed"
-
-# Create systemd service for Setup API
-log ""
-log "→ Setting up Setup API service..."
-
-ssh -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" << 'SSH_CREATE_SERVICE'
-#!/bin/bash
-cat > /tmp/trustnet-setup.service << 'SERVICE_UNIT'
-[Unit]
-Description=TrustNet v1.1.0 Setup API
-After=network.target
-Wants=network-online.target
-
-[Service]
-Type=simple
-User=_trustnet
-WorkingDirectory=/opt/trustnet/api
-ExecStart=/usr/bin/python3 /opt/trustnet/api/setup.py
-Restart=always
-RestartSec=10
-StandardOutput=journal
-StandardError=journal
-Environment="PYTHONUNBUFFERED=1"
-
-[Install]
-WantedBy=multi-user.target
-SERVICE_UNIT
-
-if command -v doas &> /dev/null; then
-    doas cp /tmp/trustnet-setup.service /etc/init.d/trustnet-setup 2>/dev/null || true
-    doas rc-service trustnet-setup start 2>/dev/null || true
-elif command -v sudo &> /dev/null; then
-    sudo cp /tmp/trustnet-setup.service /etc/systemd/system/trustnet-setup.service 2>/dev/null || true
-    sudo systemctl daemon-reload 2>/dev/null || true
-    sudo systemctl enable trustnet-setup 2>/dev/null || true
-    sudo systemctl start trustnet-setup 2>/dev/null || true
-fi
-SSH_CREATE_SERVICE
-
-log "✓ Setup API service created and started"
-
-# Configure Caddy for v1.1.0 setup endpoints
-log ""
-log "→ Configuring Caddy routing for /setup endpoint..."
-
-ssh -p "$VM_SSH_PORT" "$VM_USERNAME@$VM_HOSTNAME" << 'SSH_CADDY_CONFIG'
-#!/bin/bash
-CADDY_FILE="/etc/caddy/Caddyfile"
-
-if ! grep -q "/setup" "$CADDY_FILE" 2>/dev/null; then
-    cat >> /tmp/caddy-setup-routes << 'CADDY_ROUTES'
-
-# TrustNet v1.1.0 Setup UI (auto-configured)
-(setup-routes) {
-    route /setup* {
-        handle_path /setup {
-            file_server {
-                root /opt/trustnet/web/templates
-                index first-setup.html
-            }
-        }
-        route /api/setup/* {
-            reverse_proxy localhost:8001
-        }
-    }
-}
-
-:1317 {
-    import setup-routes
-}
-CADDY_ROUTES
-
-    if command -v doas &> /dev/null; then
-        doas cp /tmp/caddy-setup-routes /etc/caddy/Caddyfile.setup 2>/dev/null || true
-        echo "" | doas tee -a "$CADDY_FILE" 2>/dev/null || true
-        echo "import /etc/caddy/Caddyfile.setup" | doas tee -a "$CADDY_FILE" 2>/dev/null || true
-        doas rc-service caddy reload 2>/dev/null || true
-    elif command -v sudo &> /dev/null; then
-        sudo cp /tmp/caddy-setup-routes /etc/caddy/Caddyfile.setup 2>/dev/null || true
-        echo "" | sudo tee -a "$CADDY_FILE" 2>/dev/null || true
-        echo "import /etc/caddy/Caddyfile.setup" | sudo tee -a "$CADDY_FILE" 2>/dev/null || true
-        sudo systemctl reload caddy 2>/dev/null || true
-    fi
-fi
-SSH_CADDY_CONFIG
-
-log "✓ Caddy routing configured"
-
-cd ..
-rm -rf v1.1.0-components
-
-# ============================================================================
-# PHASE 3: v1.1.0 Enhanced Deployment (NEW)
-# ============================================================================
-# This section complements Phase 2 by calling dedicated deployment scripts
-# for blockchain and API services, ensuring proper initialization and routing
-
-if [ -f "$SCRIPT_DIR/tools/scripts/integrate-v1.1.0.sh" ]; then
-    log ""
-    log "→ Running v1.1.0 enhanced integration..."
-    
-    if bash "$SCRIPT_DIR/tools/scripts/integrate-v1.1.0.sh" --no-test 2>/dev/null; then
-        log "✓ v1.1.0 enhanced integration successful"
-        PHASE3_RESULT=0
-    else
-        log "⚠ v1.1.0 enhanced integration encountered issues (non-blocking)"
-        PHASE3_RESULT=1
-    fi
-else
-    log "ℹ v1.1.0 integration script not found (optional enhancement)"
-    PHASE3_RESULT=1
-fi
-
-log ""
-log "╔══════════════════════════════════════════════════════════╗"
-log "║  ✅ TrustNet Installation Complete                       ║"
-log "╚══════════════════════════════════════════════════════════╝"
-log ""
-log "Installation Summary:"
-log "  ✓ Base v1.0.0 (Cosmos SDK blockchain node)"
-log "  ✓ v1.1.0 (iOS QR code integration)"
-log ""
-log "Available Features:"
-log "  • Blockchain node: https://trustnet.local/"
-log "  • Setup UI: https://trustnet.local/setup"
-log "  • QR code API: http://trustnet.local:8001/api/setup/qr-code"
-log "  • PIN verification: http://trustnet.local:8001/api/setup/verify-pin"
-log ""
-log "View logs: cat $LOG_FILE"
-log ""
+# Run the setup script with --auto flag
+exec ./setup-trustnet-node.sh --auto
