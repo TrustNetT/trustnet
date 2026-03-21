@@ -574,6 +574,7 @@ chmod +x /tmp/lib/*.sh
 echo "=== Installing Cosmos SDK and Go ==="
 if [ -f /tmp/lib/install-cosmos-sdk.sh ]; then
     source /tmp/lib/install-cosmos-sdk.sh
+    install_cosmos_sdk
 else
     echo "WARNING: install-cosmos-sdk.sh not found"
 fi
@@ -581,6 +582,7 @@ fi
 echo "=== Installing Caddy ==="
 if [ -f /tmp/lib/install-caddy.sh ]; then
     source /tmp/lib/install-caddy.sh
+    install_caddy
 else
     echo "WARNING: install-caddy.sh not found"
 fi
@@ -588,6 +590,8 @@ fi
 echo "=== Building TrustNet Blockchain ==="
 if [ -f /tmp/lib/build-trustnet-blockchain.sh ]; then
     source /tmp/lib/build-trustnet-blockchain.sh
+    build_trustnet_blockchain
+    initialize_chain
 else
     echo "WARNING: build-trustnet-blockchain.sh not found"
 fi
