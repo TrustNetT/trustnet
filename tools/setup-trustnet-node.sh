@@ -556,6 +556,14 @@ set -euo pipefail
 # Source common functions
 source /tmp/lib/common.sh 2>/dev/null || true
 
+# Since we're already ON the VM, override ssh_exec to run commands directly
+# instead of trying to SSH back to localhost
+unset -f ssh_exec
+ssh_exec() {
+    eval "$1"
+}
+export -f ssh_exec
+
 # Make all lib scripts executable
 chmod +x /tmp/lib/*.sh
 
