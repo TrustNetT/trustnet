@@ -556,24 +556,24 @@ source /tmp/lib/common.sh 2>/dev/null || true
 # Make all lib scripts executable
 chmod +x /tmp/lib/*.sh
 
-# Run installations sequentially
+# Run installations sequentially (source instead of execute to bypass guards)
 echo "=== Installing Cosmos SDK and Go ==="
 if [ -f /tmp/lib/install-cosmos-sdk.sh ]; then
-    bash /tmp/lib/install-cosmos-sdk.sh
+    source /tmp/lib/install-cosmos-sdk.sh
 else
     echo "WARNING: install-cosmos-sdk.sh not found"
 fi
 
 echo "=== Installing Caddy ==="
 if [ -f /tmp/lib/install-caddy.sh ]; then
-    bash /tmp/lib/install-caddy.sh
+    source /tmp/lib/install-caddy.sh
 else
     echo "WARNING: install-caddy.sh not found"
 fi
 
 echo "=== Building TrustNet Blockchain ==="
 if [ -f /tmp/lib/build-trustnet-blockchain.sh ]; then
-    bash /tmp/lib/build-trustnet-blockchain.sh
+    source /tmp/lib/build-trustnet-blockchain.sh
 else
     echo "WARNING: build-trustnet-blockchain.sh not found"
 fi
