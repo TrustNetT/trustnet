@@ -331,7 +331,7 @@ start_vm_for_install() {
     
     # Export variables for expect script
     export VM_HOSTNAME VM_ROOT_PASSWORD
-    export VM_SSH_PUBLIC_KEY_CONTENT="$(cat "$VM_SSH_PUBLIC_KEY")"
+    export VM_SSH_PUBLIC_KEY_CONTENT="$(cat "$VM_SSH_PUBLIC_KEY" | tr -d '\n')"
     export QEMU_COMMAND="$qemu_cmd"
     
     # Run automated installation using external expect script (in parent tools/ directory)
