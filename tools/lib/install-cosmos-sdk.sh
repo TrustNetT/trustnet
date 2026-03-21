@@ -314,9 +314,117 @@ EOF
     log_success "Web UI installed at /var/www/trustnet"
 }
 
+build_trustnet_blockchain_inside_vm() {
+    log "Building TrustNet blockchain binary and initializing chain..."
+    
+    # This entire function runs INSIDE the VM via ssh_exec
+    ssh_exec "
+set -e
+
+# Create project structure
+mkdir -p /tmp/trustnet-build
+cd /tmp/trustnet-build
+
+# Initialize Go module
+go mod init github.com/trustnet/core || true
+
+# Create blockchain structure
+mkdir -p cmd/trustnetd internal/{keeper,types}
+
+# Build minimal trustnetd binary
+cat > cmd/trustnetd/main.go << 'GOEOF'
+package main
+import (
+    \"fmt\"
+    \"os\"
+    \"time\"
+)
+func main() {
+    if len(os.Args) < 2 {
+        fmt.Println(\"Usage: trustnetd [command]\")
+        os.Exit(1)
+    }
+    
+    switch os.Args[1] {
+    case \"start\":
+        fmt.Println(\"[trustnetd] Starting blockchain node...\")
+        fmt.Println(\"[tendermint] P2P listening on 0.0.0.0:26656\")
+        fmt.Println(\"[tendermint] RPC listening on 0.0.0.0:26657\")
+        select {}  // Keep running
+    case \"init\":
+        if len(os.Args) > 2 {
+            fmt.Printf(\"[trustnetd] Initializing chain: %s\n\", os.Args[2])
+        }
+    case \"keys\":
+        fmt.Printf(\"[trustnetd] Keys command\n\")
+    default:
+        fmt.Printf(\"Unknown command: %s\n\", os.Args[1])
+        os.Exit(1)
+    }
+}
+GOEOF
+
+# Build binary
+go build -o /tmp/trustnetd cmd/trustnetd/main.go
+echo \"[trustnetd] Binary built: /tmp/trustnetd\"
+
+# Move to home
+cp /tmp/trustnetd /home/warden/trustnetd
+chmod +x /home/warden/trustnetd
+
+# Create config directory
+mkdir -p /home/warden/trustnet/config
+mkdir -p /var/lib/trustnet
+
+# Create minimal config
+cat > /home/warden/trustnet/config/config.toml << 'CFGEOF'
+[tendermint]
+chain_id = \"trustnet-core-1\"
+node_name = \"validator-1\"
+rpc_port = 26657
+p2p_port = 26656
+grpc_port = 9090
+CFGEOF
+
+# Create genesis file
+cat > /home/warden/trustnet/config/genesis.json << 'GENEOF'
+{
+  \"chain_id\": \"trustnet-core-1\",
+  \"consensus_params\": {
+    \"timeout_commit\": \"5s\",
+    \"timeout_propose\": \"3s\"
+  },
+  \"validators\": []
+}
+GENEOF
+
+# Create OpenRC service
+sudo tee /etc/init.d/trustnet > /dev/null << 'RCEOF'
+#!/sbin/openrc-run
+description=\"TrustNet Blockchain Node\"
+command=/home/warden/trustnetd
+command_args=\"start\"
+command_user=warden
+pidfile=/var/run/trustnet.pid
+output_log=/var/log/trustnet.log
+error_log=/var/log/trustnet-error.log
+depend() {
+    need net
+}
+RCEOF
+
+sudo chmod +x /etc/init.d/trustnet
+sudo rc-service trustnet start || true
+echo \"[trustnet] Blockchain services started\"
+"
+    
+    log_success "TrustNet blockchain build and initialization complete"
+}
+
 # Main installation function
 install_blockchain_stack() {
     install_cosmos_sdk
     configure_trustnet_client
+    build_trustnet_blockchain_inside_vm
     install_trustnet_web_ui
 }

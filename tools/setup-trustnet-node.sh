@@ -498,12 +498,9 @@ main() {
     # (configure_installed_vm handles user creation, disks, and SSH)
     configure_installed_vm
     
-    # Phase 5: Install software
+    # Phase 5-6: Install software and blockchain (Caddy + Cosmos SDK + blockchain build)
     install_caddy_via_ssh
     install_blockchain_stack
-    
-    # Phase 6: Build TrustNet blockchain binary and initialize chain
-    source "${LIB_DIR}/build-trustnet-blockchain.sh"
     
     # Phase 7: Configure SSL certificates
     install_certificates_on_host
