@@ -93,7 +93,7 @@ VM_DIR="${HOME}/vms/trustnet"
 VM_NAME="trustnet"
 VM_MEMORY="2G"
 VM_CPUS="2"
-VM_SSH_PORT="2223"
+VM_SSH_PORT="${VM_SSH_PORT:-2223}"
 
 # TrustNet Node Configuration
 VM_HOSTNAME="trustnet.local"
