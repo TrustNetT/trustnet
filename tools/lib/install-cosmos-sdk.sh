@@ -510,6 +510,7 @@ description=\"TrustNet Blockchain Node\"
 command=/home/warden/trustnetd
 command_args=\"start\"
 command_user=warden
+command_background=yes
 pidfile=/var/run/trustnet.pid
 depend() {
     need net
