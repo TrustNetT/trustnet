@@ -321,7 +321,74 @@ EOF
 
     chmod +x "${VM_DIR}/stop-trustnet.sh"
     
-    log_success "Start/stop scripts created"
+    # Create status script
+    cat > "${VM_DIR}/status-trustnet.sh" << 'EOF'
+#!/bin/bash
+VM_DIR="${HOME}/vms/trustnet"
+PID_FILE="${VM_DIR}/trustnet.pid"
+SSH_PORT=$(grep -oP 'SSH_PORT=\K[0-9]+' "${VM_DIR}/start-trustnet.sh" || echo "2223")
+
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+echo "╔════════════════════════════════════════════════════════════════╗"
+echo "║              TrustNet Node Status                              ║"
+echo "╚════════════════════════════════════════════════════════════════╝"
+echo ""
+
+# Check VM status
+if [ -f "$PID_FILE" ] && sudo kill -0 $(cat "$PID_FILE") 2>/dev/null; then
+    VM_PID=$(cat "$PID_FILE")
+    echo -e "${GREEN}✓ VM Status: RUNNING (PID: $VM_PID)${NC}"
+else
+    echo -e "${RED}✗ VM Status: STOPPED${NC}"
+fi
+
+echo ""
+
+# Try to connect via SSH if VM is running
+if command -v ssh &> /dev/null; then
+    echo "Checking SSH connectivity..."
+    if timeout 2 ssh -o ConnectTimeout=2 -o StrictHostKeyChecking=no trustnet "echo 'SSH: OK'" 2>/dev/null; then
+        echo -e "  ${GREEN}✓ SSH: Available${NC}"
+        
+        # Check service status on VM
+        if ssh trustnet "sudo rc-service trustnet status" 2>/dev/null | grep -q "started"; then
+            echo -e "  ${GREEN}✓ Blockchain Service: RUNNING${NC}"
+        else
+            echo -e "  ${YELLOW}⚠ Blockchain Service: NOT RUNNING${NC}"
+        fi
+        
+        # Check Caddy
+        if ssh trustnet "sudo rc-service caddy status" 2>/dev/null | grep -q "started"; then
+            echo -e "  ${GREEN}✓ Caddy HTTPS: RUNNING${NC}"
+        else
+            echo -e "  ${YELLOW}⚠ Caddy HTTPS: NOT RUNNING${NC}"
+        fi
+    else
+        echo -e "  ${RED}✗ SSH: Not responding${NC}"
+    fi
+fi
+
+echo ""
+echo "Access your node:"
+echo "  SSH:     ssh trustnet"
+echo "  Web UI:  https://trustnet.local"
+echo "  RPC:     https://rpc.trustnet.local"
+echo "  REST API: https://api.trustnet.local"
+echo ""
+echo "Management:"
+echo "  Start:   ${VM_DIR}/start-trustnet.sh"
+echo "  Stop:    ${VM_DIR}/stop-trustnet.sh"
+echo "  Status:  ${VM_DIR}/status-trustnet.sh"
+echo ""
+EOF
+
+    chmod +x "${VM_DIR}/status-trustnet.sh"
+    
+    log_success "Start/stop/status scripts created"
 }
 
 configure_ssh_on_host() {
@@ -397,6 +464,7 @@ Node Configuration:
 VM Management:
   Start: ${VM_DIR}/start-trustnet.sh
   Stop: ${VM_DIR}/stop-trustnet.sh
+  Status: ${VM_DIR}/status-trustnet.sh
   Directory: ${VM_DIR}
 
 Next Steps:
@@ -432,23 +500,27 @@ print_completion_message() {
     log "✅ TrustNet blockchain client configured"
     log "✅ Caddy web server with HTTPS"
     log "✅ SSL certificates installed"
+    log "✅ Node is now RUNNING"
     log ""
-    log "Access your node:"
-    log "  SSH: ssh trustnet"
-    log "  Web UI: https://trustnet.local"
-    log "  RPC: https://rpc.trustnet.local"
-    log "  API: https://api.trustnet.local"
+    log "📍 Access your node:"
+    log "  SSH:      ssh trustnet"
+    log "  Web UI:   https://trustnet.local"
+    log "  RPC API:  https://rpc.trustnet.local"
+    log "  REST API: https://api.trustnet.local"
     log ""
-    log "Credentials saved to:"
+    log "🛠️  Node management scripts:"
+    log "  Start:    ${VM_DIR}/start-trustnet.sh"
+    log "  Stop:     ${VM_DIR}/stop-trustnet.sh"
+    log "  Status:   ${VM_DIR}/status-trustnet.sh"
+    log ""
+    log "📝 Credentials saved to:"
     log "  ${VM_DIR}/credentials.txt"
     log ""
-    log "Start your node:"
-    log "  ${VM_DIR}/start-trustnet.sh"
-    log ""
-    log "Next steps:"
-    log "  1. Visit https://trustnet.local"
-    log "  2. Register your identity"
-    log "  3. Start building reputation!"
+    log "🚀 Next steps:"
+    log "  1. Open https://trustnet.local in your browser"
+    log "  2. Register your identity (creates cryptographic keypair)"
+    log "  3. Check service status: ${VM_DIR}/status-trustnet.sh"
+    log "  4. Start building reputation!"
     log ""
 }
 
