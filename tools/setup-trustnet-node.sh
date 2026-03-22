@@ -550,17 +550,20 @@ execute_blockchain_installation() {
     # Ensure VM_SSH_PORT is available to scripts (determined at install time)
     export VM_SSH_PORT
     
-    log_info "Installing Cosmos SDK and Go..."
+    # Phase 1: Install Cosmos SDK, build blockchain, and web UI
+    log_info "Installing Cosmos SDK and building blockchain..."
     source "${LIB_DIR}/install-cosmos-sdk.sh"
     install_blockchain_stack
     
-    log_info "Installing Caddy..."
+    # Phase 2: Install and configure Caddy reverse proxy
+    # Caddy provides HTTPS access via subdomains:
+    # - trustnet.local → Web UI
+    # - rpc.trustnet.local → RPC (26657)
+    # - p2p.trustnet.local → P2P (26656)
+    # - api.trustnet.local → REST API (1317)
+    log_info "Installing Caddy reverse proxy with HTTPS subdomains..."
     source "${LIB_DIR}/install-caddy.sh"
     install_caddy_via_ssh
-    
-    log_info "Building TrustNet Blockchain..."
-    source "${LIB_DIR}/build-trustnet-blockchain.sh"
-    main
     
     log_success "Blockchain installation completed"
 }

@@ -15,6 +15,7 @@ install_caddy_via_ssh() {
     # - trustnet.local → Web UI (file server)
     # - rpc.trustnet.local → RPC endpoint (reverse proxy to :26657)
     # - api.trustnet.local → REST API endpoint (reverse proxy to :1317)
+    # - p2p.trustnet.local → P2P endpoint (reverse proxy to :26656)
     # Using port 443 binding allows both IPv4 and IPv6, enabling QEMU port forwarding
     cat > /tmp/Caddyfile << CADDY_EOF
 # Web UI - serves static content
@@ -27,6 +28,12 @@ install_caddy_via_ssh() {
 # RPC endpoint - reverse proxy to local blockchain RPC
 rpc.trustnet.local:443 {
     reverse_proxy http://127.0.0.1:26657
+    tls /etc/caddy/certs/trustnet.local.crt /etc/caddy/certs/trustnet.local.key
+}
+
+# P2P endpoint - reverse proxy to local blockchain P2P
+p2p.trustnet.local:443 {
+    reverse_proxy http://127.0.0.1:26656
     tls /etc/caddy/certs/trustnet.local.crt /etc/caddy/certs/trustnet.local.key
 }
 
@@ -59,7 +66,7 @@ sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \\
     -keyout /etc/caddy/certs/${VM_HOSTNAME}.key \\
     -out /etc/caddy/certs/${VM_HOSTNAME}.crt \\
     -subj '/CN=${VM_HOSTNAME}' \\
-    -addext 'subjectAltName=DNS:${VM_HOSTNAME},DNS:rpc.${VM_HOSTNAME},DNS:api.${VM_HOSTNAME}'
+    -addext 'subjectAltName=DNS:${VM_HOSTNAME},DNS:rpc.${VM_HOSTNAME},DNS:p2p.${VM_HOSTNAME},DNS:api.${VM_HOSTNAME}'
 
 # Set ownership to caddy user for permission access
 sudo chown -R caddy:caddy /etc/caddy/certs
@@ -82,12 +89,12 @@ EOF
 # Configure VM's /etc/hosts with subdomains
 echo "Configuring VM hostname resolution..."
 if ! grep -q "trustnet.local" /etc/hosts; then
-    echo "::1 trustnet.local rpc.trustnet.local api.trustnet.local" | sudo tee -a /etc/hosts > /dev/null
+    echo "::1 trustnet.local rpc.trustnet.local p2p.trustnet.local api.trustnet.local" | sudo tee -a /etc/hosts > /dev/null
 fi
 
 # Also add IPv4 loopback for compatibility
 if ! grep -q "127.0.0.1.*trustnet.local" /etc/hosts; then
-    echo "127.0.0.1 trustnet.local rpc.trustnet.local api.trustnet.local" | sudo tee -a /etc/hosts > /dev/null
+    echo "127.0.0.1 trustnet.local rpc.trustnet.local p2p.trustnet.local api.trustnet.local" | sudo tee -a /etc/hosts > /dev/null
 fi
 
 sudo mv /tmp/Caddyfile /etc/caddy/Caddyfile
