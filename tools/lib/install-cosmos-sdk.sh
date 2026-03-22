@@ -530,8 +530,8 @@ echo \"[trustnet] Blockchain services started and backgrounded\"
     log_success "TrustNet blockchain build and initialization complete"
 }
 
-# Main installation function
-install_blockchain_stack() {
+# Blockchain installation orchestration (called after scripts are distributed)
+run_blockchain_installation() {
     install_cosmos_sdk
     configure_trustnet_client
     build_trustnet_blockchain_inside_vm

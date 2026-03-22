@@ -630,11 +630,8 @@ execute_blockchain_installation() {
     log_info "Installing Cosmos SDK and building blockchain..."
     source "${LIB_DIR}/install-cosmos-sdk.sh"
     
-    # Call blockchain installation components from install-cosmos-sdk.sh
-    install_cosmos_sdk
-    configure_trustnet_client
-    build_trustnet_blockchain_inside_vm
-    install_trustnet_web_ui
+    # Call blockchain installation from lib (renamed to avoid conflict)
+    run_blockchain_installation
     
     log_success "Blockchain installation completed"
 }
