@@ -420,6 +420,9 @@ RCEOF
 
 sudo chmod +x /etc/init.d/trustnet
 sudo rc-update add trustnet default
+# Create log file with proper permissions
+sudo touch /var/log/trustnet.log
+sudo chmod 644 /var/log/trustnet.log
 # Start service with output redirected to detach from SSH
 nohup sudo rc-service trustnet start > /var/log/trustnet.log 2>&1 &
 sleep 3  # Give service time to fully start and become ready

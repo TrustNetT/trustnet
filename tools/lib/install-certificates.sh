@@ -24,7 +24,7 @@ install_certificates_on_host() {
         -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
         -o ConnectTimeout=10 \
         ${VM_USERNAME}@localhost \
-        "doas cat /etc/caddy/certs/${VM_HOSTNAME}.crt" > "$cert_file" 2>/dev/null; then
+        "doas cat /etc/caddy/certs/wildcard.crt" > "$cert_file" 2>/dev/null; then
         
         log_success "  ✓ SSL certificate retrieved from VM (365-day validity)"
         
