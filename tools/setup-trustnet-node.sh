@@ -576,14 +576,6 @@ install_blockchain_stack() {
     log_success "Blockchain stack installed"
 }
 
-install_caddy_via_ssh() {
-    log "Caddy installation handled by blockchain_stack phase"
-}
-
-install_certificates_on_host() {
-    log "Certificate installation deferred"
-}
-
 ################################################################################
 # Main Installation Flow
 ################################################################################
