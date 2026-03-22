@@ -17,7 +17,7 @@ setup_motd_via_ssh() {
         -o UserKnownHostsFile=/dev/null \
         -o ConnectTimeout=10 \
         -p "$VM_SSH_PORT" \
-        root@localhost 'bash -s' << 'MOTD_SCRIPT'
+        root@localhost 'bash -s' << "MOTD_SCRIPT"
 cat > /etc/motd << "MOTD_EOF"
 ╔════════════════════════════════════════════════════════════════╗
 ║                                                                ║
