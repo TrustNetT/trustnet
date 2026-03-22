@@ -545,45 +545,18 @@ distribute_scripts_via_scp() {
 execute_blockchain_installation() {
     log "Executing blockchain installation on VM..."
     
-    # Create a simple orchestrator script on the VM that sources and runs the installations
-    ssh -p "$VM_SSH_PORT" "${VM_USERNAME}@localhost" "bash" << 'REMOTE_SCRIPT'
-#!/bin/bash
-set -euo pipefail
-
-# Source common functions
-source /tmp/lib/common.sh 2>/dev/null || true
-
-# Make all lib scripts executable
-chmod +x /tmp/lib/*.sh
-
-# Source and execute installation scripts
-echo "=== Installing Cosmos SDK and Blockchain Tools ==="
-if [ -f /tmp/lib/install-cosmos-sdk.sh ]; then
-    source /tmp/lib/install-cosmos-sdk.sh
-    install_blockchain_stack
-else
-    echo "WARNING: install-cosmos-sdk.sh not found"
-fi
-
-echo "=== Installing Caddy ==="
-if [ -f /tmp/lib/install-caddy.sh ]; then
-    source /tmp/lib/install-caddy.sh
-    install_caddy_service
-else
-    echo "WARNING: install-caddy.sh not found"
-fi
-
-echo "=== Building TrustNet Blockchain ==="
-if [ -f /tmp/lib/build-trustnet-blockchain.sh ]; then
-    source /tmp/lib/build-trustnet-blockchain.sh
-else
-    echo "WARNING: build-trustnet-blockchain.sh not found"
-fi
-
-echo "=== Installation Complete ==="
-REMOTE_SCRIPT
+    # Source and execute from HOST (not VM) so ssh_exec works correctly
+    # Export VM_SSH_PORT explicitly so blockchain scripts use correct port (not default 2222)
+    log_info "Installing Cosmos SDK and Go..."
+    VM_SSH_PORT="$VM_SSH_PORT" bash "${LIB_DIR}/install-cosmos-sdk.sh"
     
-    log_success "Blockchain installation completed on VM"
+    log_info "Installing Caddy..."
+    VM_SSH_PORT="$VM_SSH_PORT" bash "${LIB_DIR}/install-caddy.sh"
+    
+    log_info "Building TrustNet Blockchain..."
+    VM_SSH_PORT="$VM_SSH_PORT" bash "${LIB_DIR}/build-trustnet-blockchain.sh"
+    
+    log_success "Blockchain installation completed"
 }
 
 install_blockchain_stack() {
