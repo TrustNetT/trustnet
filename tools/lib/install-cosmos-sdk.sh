@@ -505,26 +505,52 @@ GENEOF
 # Create OpenRC service
 sudo tee /etc/init.d/trustnet > /dev/null << 'RCEOF'
 #!/sbin/openrc-run
-description=\"TrustNet Blockchain Node\"
+name="TrustNet Blockchain Node"
+description="TrustNet Blockchain Client"
 command=/home/warden/trustnetd
-command_args=\"start\"
+command_args="start"
 command_user=warden
 command_background=yes
 pidfile=/var/run/trustnet.pid
+logfile=/var/log/trustnet/trustnet.log
+
 depend() {
     need net
+}
+
+start_pre() {
+    # Ensure log directory exists with correct permissions
+    mkdir -p /var/log/trustnet
+    chown warden:warden /var/log/trustnet
+    chmod 755 /var/log/trustnet
+}
+
+start() {
+    ebegin "Starting \$name"
+    start-stop-daemon --start --background --pidfile="\$pidfile" \\
+        --user \$command_user --exec "\$command" -- \$command_args
+    eend \$?
+}
+
+stop() {
+    ebegin "Stopping \$name"
+    start-stop-daemon --stop --pidfile="\$pidfile"
+    eend \$?
 }
 RCEOF
 
 sudo chmod +x /etc/init.d/trustnet
 sudo rc-update add trustnet default
-# Create log file with proper permissions
-sudo touch /var/log/trustnet.log
-sudo chmod 644 /var/log/trustnet.log
-# Start service with output redirected to detach from SSH
-nohup sudo rc-service trustnet start > /var/log/trustnet.log 2>&1 &
-sleep 3  # Give service time to fully start and become ready
-echo \"[trustnet] Blockchain services started and backgrounded\"
+
+# Create log directory with proper permissions (user-writable)
+sudo mkdir -p /var/log/trustnet
+sudo chown warden:warden /var/log/trustnet
+sudo chmod 755 /var/log/trustnet
+
+# Start service via rc-service (OpenRC will manage autostart via rc-update)
+sudo rc-service trustnet start
+sleep 3  # Give service time to fully start
+echo \"[trustnet] Blockchain service added to default runlevel (will auto-start on boot)\"
 "
     
     log_success "TrustNet blockchain build and initialization complete"
