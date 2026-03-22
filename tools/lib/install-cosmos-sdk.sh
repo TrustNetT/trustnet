@@ -420,8 +420,10 @@ RCEOF
 
 sudo chmod +x /etc/init.d/trustnet
 sudo rc-update add trustnet default
-sudo rc-service trustnet start || true
-echo \"[trustnet] Blockchain services started\"
+# Start service with output redirected to detach from SSH
+nohup sudo rc-service trustnet start > /var/log/trustnet.log 2>&1 &
+sleep 3  # Give service time to fully start and become ready
+echo \"[trustnet] Blockchain services started and backgrounded\"
 "
     
     log_success "TrustNet blockchain build and initialization complete"
