@@ -18,34 +18,51 @@ install_caddy_via_ssh() {
     # - api.trustnet.local → REST API endpoint (reverse proxy to :1317)
     # Using wildcard certificate (*.trustnet.local) for all subdomains
     cat > /tmp/Caddyfile << CADDY_EOF
-# Wildcard certificate for all subdomains
-*.${VM_HOSTNAME} {
+# Global TLS configuration to use wildcard certificate
+(tls_config) {
     tls /etc/caddy/certs/wildcard.crt /etc/caddy/certs/wildcard.key
 }
 
 # Web UI - serves static content
-:443 ${VM_HOSTNAME} {
+${VM_HOSTNAME}:443 {
+    import tls_config
     root * /var/www/trustnet
     file_server
-    tls /etc/caddy/certs/wildcard.crt /etc/caddy/certs/wildcard.key
 }
 
 # RPC endpoint - reverse proxy to local blockchain RPC
 rpc.${VM_HOSTNAME}:443 {
+    import tls_config
     reverse_proxy http://127.0.0.1:26657
-    tls /etc/caddy/certs/wildcard.crt /etc/caddy/certs/wildcard.key
 }
 
 # P2P endpoint - reverse proxy to local blockchain P2P
 p2p.${VM_HOSTNAME}:443 {
+    import tls_config
     reverse_proxy http://127.0.0.1:26656
-    tls /etc/caddy/certs/wildcard.crt /etc/caddy/certs/wildcard.key
 }
 
 # REST API endpoint - reverse proxy to local blockchain REST API
 api.${VM_HOSTNAME}:443 {
+    import tls_config
     reverse_proxy http://127.0.0.1:1317
-    tls /etc/caddy/certs/wildcard.crt /etc/caddy/certs/wildcard.key
+}
+
+# HTTP redirects to HTTPS
+http://${VM_HOSTNAME} {
+    redir https://{host}{uri} permanent
+}
+
+http://rpc.${VM_HOSTNAME} {
+    redir https://{host}{uri} permanent
+}
+
+http://p2p.${VM_HOSTNAME} {
+    redir https://{host}{uri} permanent
+}
+
+http://api.${VM_HOSTNAME} {
+    redir https://{host}{uri} permanent
 }
 CADDY_EOF
     
