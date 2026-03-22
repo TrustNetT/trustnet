@@ -94,22 +94,80 @@ VM_NAME="trustnet"
 VM_MEMORY="2G"
 VM_CPUS="2"
 
-# Find an available port (starting from 2223)
+# Smart port management: Check if default port is in use by TrustNet VM or another process
 find_available_port() {
-    local port=2223
+    local default_port=2223
     local max_port=2243
-    while [ $port -lt $max_port ]; do
-        if ! (echo >/dev/tcp/127.0.0.1/$port) 2>/dev/null; then
-            echo $port
-            return 0
+    local port=$default_port
+    
+    # Check if default port is available
+    if (echo >/dev/tcp/127.0.0.1/$default_port) 2>/dev/null; then
+        # Port is in use - check if it's the TrustNet VM
+        echo "Port $default_port is in use - checking if it's a TrustNet VM..."
+        
+        # Try to detect if TrustNet VM is running on this port
+        if [ -f "${VM_DIR}/stop-trustnet.sh" ] || [ -f "${VM_DIR}/trustnet.pid" ] || pgrep -f "trustnet.qcow2" >/dev/null 2>&1; then
+            echo "Port $default_port appears to be in use by TrustNet VM"
+            echo "Attempting to stop the existing VM..."
+            
+            # Try stop script first
+            if [ -f "${VM_DIR}/stop-trustnet.sh" ]; then
+                bash "${VM_DIR}/stop-trustnet.sh" 2>/dev/null | grep -q "Stopping\|stopped"
+                if [ $? -eq 0 ]; then
+                    sleep 2
+                    echo "Successfully stopped existing TrustNet VM - using port $default_port"
+                    echo $default_port
+                    return 0
+                fi
+            fi
+            
+            # Try killing by PID
+            if [ -f "${VM_DIR}/trustnet.pid" ]; then
+                local pid=$(cat "${VM_DIR}/trustnet.pid" 2>/dev/null)
+                if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+                    kill "$pid" 2>/dev/null || true
+                    rm -f "${VM_DIR}/trustnet.pid"
+                    sleep 2
+                    echo "Stopped TrustNet VM by PID - using port $default_port"
+                    echo $default_port
+                    return 0
+                fi
+            fi
+            
+            # Try killing QEMU process
+            if pgrep -f "trustnet.qcow2" >/dev/null 2>&1; then
+                pkill -f "trustnet.qcow2" 2>/dev/null || true
+                sleep 2
+                if ! (echo >/dev/tcp/127.0.0.1/$default_port) 2>/dev/null; then
+                    echo "Stopped QEMU process - using port $default_port"
+                    echo $default_port
+                    return 0
+                fi
+            fi
         fi
-        ((port++))
-    done
-    echo "ERROR: No available ports between 2223-2242" >&2
-    exit 1
+        
+        # If we got here, port is in use but NOT by TrustNet - find different port
+        echo "Port $default_port is in use by a different process - finding alternative..."
+        port=$((default_port + 1))
+        while [ $port -lt $max_port ]; do
+            if ! (echo >/dev/tcp/127.0.0.1/$port) 2>/dev/null; then
+                echo "Using alternative port $port"
+                echo $port
+                return 0
+            fi
+            ((port++))
+        done
+        
+        echo "ERROR: No available ports between 2223-2242 and could not stop existing VM" >&2
+        exit 1
+    fi
+    
+    # Default port is free
+    echo $default_port
+    return 0
 }
 
-VM_SSH_PORT=$(find_available_port)
+VM_SSH_PORT=$(find_available_port | tail -1)
 
 # TrustNet Node Configuration
 VM_HOSTNAME="trustnet.local"

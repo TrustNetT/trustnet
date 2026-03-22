@@ -18,7 +18,7 @@ setup_motd_via_ssh() {
         -o ConnectTimeout=10 \
         -p "$VM_SSH_PORT" \
         root@localhost 'bash -s' << "MOTD_SCRIPT"
-cat > /etc/motd << "MOTD_EOF"
+cat > /etc/motd << MOTD_EOF
 ╔════════════════════════════════════════════════════════════════╗
 ║                                                                ║
 ║          🔗  TrustNet Node - Decentralized Trust Network       ║
