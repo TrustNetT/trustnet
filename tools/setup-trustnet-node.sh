@@ -618,6 +618,9 @@ distribute_scripts_via_scp() {
 execute_blockchain_installation() {
     log "Executing blockchain installation on VM..."
     
+    # Distribute scripts AFTER warden user is created
+    distribute_scripts_via_scp
+    
     # Source scripts to execute functions with correct environment
     # Scripts guard against direct execution and must be sourced
     # Ensure VM_SSH_PORT is available to scripts (determined at install time)
@@ -626,15 +629,18 @@ execute_blockchain_installation() {
     # Phase 1: Install Cosmos SDK, build blockchain, and web UI
     log_info "Installing Cosmos SDK and building blockchain..."
     source "${LIB_DIR}/install-cosmos-sdk.sh"
-    install_blockchain_stack
+    
+    # Call blockchain installation components from install-cosmos-sdk.sh
+    install_cosmos_sdk
+    configure_trustnet_client
+    build_trustnet_blockchain_inside_vm
+    install_trustnet_web_ui
     
     log_success "Blockchain installation completed"
 }
 
 install_blockchain_stack() {
     log "Installing blockchain stack..."
-    # Distribute scripts AFTER warden user is created
-    distribute_scripts_via_scp
     execute_blockchain_installation
     log_success "Blockchain stack installed"
 }
