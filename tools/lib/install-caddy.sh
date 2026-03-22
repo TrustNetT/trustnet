@@ -75,8 +75,8 @@ sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
 
 # Set ownership to caddy user for permission access
 sudo chown -R caddy:caddy /etc/caddy/certs
-sudo chmod 644 /etc/caddy/certs/${VM_HOSTNAME}.crt
-sudo chmod 640 /etc/caddy/certs/${VM_HOSTNAME}.key
+sudo chmod 644 /etc/caddy/certs/wildcard.crt
+sudo chmod 640 /etc/caddy/certs/wildcard.key
 EOF
     
     # Copy Caddyfile
