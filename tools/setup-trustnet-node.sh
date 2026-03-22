@@ -545,16 +545,22 @@ distribute_scripts_via_scp() {
 execute_blockchain_installation() {
     log "Executing blockchain installation on VM..."
     
-    # Source and execute from HOST (not VM) so ssh_exec works correctly
-    # Export VM_SSH_PORT explicitly so blockchain scripts use correct port (not default 2222)
+    # Source scripts to execute functions with correct environment
+    # Scripts guard against direct execution and must be sourced
+    # Ensure VM_SSH_PORT is available to scripts (determined at install time)
+    export VM_SSH_PORT
+    
     log_info "Installing Cosmos SDK and Go..."
-    VM_SSH_PORT="$VM_SSH_PORT" bash "${LIB_DIR}/install-cosmos-sdk.sh"
+    source "${LIB_DIR}/install-cosmos-sdk.sh"
+    install_blockchain_stack
     
     log_info "Installing Caddy..."
-    VM_SSH_PORT="$VM_SSH_PORT" bash "${LIB_DIR}/install-caddy.sh"
+    source "${LIB_DIR}/install-caddy.sh"
+    install_caddy_via_ssh
     
     log_info "Building TrustNet Blockchain..."
-    VM_SSH_PORT="$VM_SSH_PORT" bash "${LIB_DIR}/build-trustnet-blockchain.sh"
+    source "${LIB_DIR}/build-trustnet-blockchain.sh"
+    main
     
     log_success "Blockchain installation completed"
 }
