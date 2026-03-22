@@ -503,12 +503,11 @@ cat > /home/warden/trustnet/config/genesis.json << 'GENEOF'
 GENEOF
 
 # Create OpenRC service
-sudo tee /etc/init.d/trustnet > /dev/null << 'RCEOF'
+sudo tee /etc/init.d/trustnet > /dev/null << RCEOF
 #!/sbin/openrc-run
 name="TrustNet Blockchain Node"
 description="TrustNet Blockchain Client"
 command=/home/warden/trustnetd
-command_args="start"
 command_user=warden
 command_background=yes
 pidfile=/var/run/trustnet.pid
@@ -528,7 +527,7 @@ start_pre() {
 start() {
     ebegin "Starting \$name"
     start-stop-daemon --start --background --pidfile="\$pidfile" \\
-        --user \$command_user --exec "\$command" -- \$command_args
+        --user \$command_user --exec "\$command"
     eend \$?
 }
 
