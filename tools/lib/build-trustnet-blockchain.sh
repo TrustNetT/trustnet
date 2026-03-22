@@ -287,7 +287,7 @@ sudo tee /etc/init.d/trustnet > /dev/null << 'INIT'
 name="TrustNet Node"
 description="TrustNet Blockchain Client"
 
-command="/home/warden/trustnet/bin/trustnetd"
+command="/home/warden/trustnetd"
 command_args="start"
 command_user="warden:warden"
 pidfile="/var/run/trustnet.pid"
@@ -297,7 +297,7 @@ depend() {
 }
 
 start_pre() {
-    checkpath --directory --owner warden:warden --mode 0755 /home/warden/trustnet/data
+    checkpath --directory --owner warden:warden --mode 0755 /var/lib/trustnet
 }
 
 start() {

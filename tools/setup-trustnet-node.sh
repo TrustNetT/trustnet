@@ -506,6 +506,7 @@ print_completion_message() {
     log "  SSH:      ssh trustnet"
     log "  Web UI:   https://trustnet.local"
     log "  RPC API:  https://rpc.trustnet.local"
+    log "  P2P:      https://p2p.trustnet.local"
     log "  REST API: https://api.trustnet.local"
     log ""
     log "🛠️  Node management scripts:"
