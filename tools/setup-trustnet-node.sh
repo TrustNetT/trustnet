@@ -186,16 +186,6 @@ DATA_DISK="${VM_DIR}/${VM_NAME}-data.qcow2"
 ALPINE_VERSION=""  # Auto-detect latest
 # ALPINE_ARCH set from command-line args (defaults to x86_64)
 
-# Export variables for modules
-export SCRIPT_DIR PROJECT_ROOT VM_DIR VM_NAME VM_MEMORY VM_CPUS VM_SSH_PORT
-export VM_HOSTNAME VM_USERNAME SSH_KEY_NAME
-export SYSTEM_DISK_SIZE CACHE_DISK_SIZE DATA_DISK_SIZE SYSTEM_DISK CACHE_DISK DATA_DISK
-export ALPINE_VERSION ALPINE_ARCH CACHE_DIR
-
-################################################################################
-# Source Modules
-################################################################################
-
 # Determine lib directory location
 if [ "$(basename "$SCRIPT_DIR")" = "trustnet" ]; then
     # One-liner install: ~/trustnet/lib/
@@ -204,6 +194,17 @@ else
     # Development/repo: ~/GitProjects/TrustNet/trustnet-wip/tools/lib/
     LIB_DIR="${SCRIPT_DIR}/lib"
 fi
+
+# Export variables for modules (including LIB_DIR needed by sourced scripts)
+export SCRIPT_DIR PROJECT_ROOT VM_DIR VM_NAME VM_MEMORY VM_CPUS VM_SSH_PORT
+export VM_HOSTNAME VM_USERNAME SSH_KEY_NAME
+export SYSTEM_DISK_SIZE CACHE_DISK_SIZE DATA_DISK_SIZE SYSTEM_DISK CACHE_DISK DATA_DISK
+export ALPINE_VERSION ALPINE_ARCH CACHE_DIR
+export LIB_DIR
+
+################################################################################
+# Source Modules
+################################################################################
 
 # Verify lib directory exists
 if [ ! -d "$LIB_DIR" ]; then
