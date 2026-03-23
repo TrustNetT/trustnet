@@ -282,6 +282,16 @@ EOF
 build_trustnet_blockchain_inside_vm() {
     log "Building TrustNet blockchain binary and initializing chain..."
     
+    # Copy service file to VM BEFORE starting the build
+    # (Must happen outside ssh_exec so ${LIB_DIR} is available on HOST)
+    log_info "Deploying service file..."
+    scp -i "$VM_SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+        -p "$VM_SSH_PORT" \
+        "${LIB_DIR}/trustnet.service" \
+        "${VM_USERNAME}@localhost:/tmp/trustnet.service" >/dev/null 2>&1 || {
+        echo "[WARNING] Failed to copy trustnet.service - will attempt to deploy manually"
+    }
+    
     # This entire function runs INSIDE the VM via ssh_exec
     ssh_exec "
 set -e
@@ -502,16 +512,16 @@ cat > /home/warden/trustnet/config/genesis.json << 'GENEOF'
 }
 GENEOF
 
-# Create OpenRC service by copying pre-made template
-# This avoids heredoc escaping issues completely
-scp -i "$VM_SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    -p "$VM_SSH_PORT" \
-    "${LIB_DIR}/trustnet.service" \
-    "${VM_USERNAME}@localhost:/tmp/trustnet.service" >/dev/null 2>&1
-
-sudo cp /tmp/trustnet.service /etc/init.d/trustnet
-sudo chmod +x /etc/init.d/trustnet
-sudo rc-update add trustnet default
+# Create OpenRC service from pre-copied template
+# Service file was copied to /tmp by deploy script before blockchain build
+if [ -f /tmp/trustnet.service ]; then
+    sudo cp /tmp/trustnet.service /etc/init.d/trustnet
+    sudo chmod +x /etc/init.d/trustnet
+    sudo rc-update add trustnet default
+    echo \"[trustnet] Service deployed from template\"
+else
+    echo \"[WARNING] Service file not found in /tmp - service won't auto-start\"
+fi
 
 # Create log directory with proper permissions (user-writable)
 sudo mkdir -p /var/log/trustnet
