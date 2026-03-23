@@ -240,6 +240,7 @@ MODULES=(
     "install-cosmos-sdk.sh"
     "install-certificates.sh"
     "setup-motd.sh"
+    "trustnet.service"
 )
 
 for module in "${MODULES[@]}"; do
