@@ -413,7 +413,7 @@ if command -v ssh &> /dev/null; then
         echo -e "  ${GREEN}✓ SSH: Available${NC}"
         
         # Check service status on VM
-        if ssh trustnet "sudo rc-service trustnet status" 2>/dev/null | grep -q "started"; then
+        if ssh trustnet "sudo rc-service trustnet status" 2>/dev/null | grep -q "running"; then
             echo -e "  ${GREEN}✓ Blockchain Service: RUNNING${NC}"
         else
             echo -e "  ${YELLOW}⚠ Blockchain Service: NOT RUNNING${NC}"
