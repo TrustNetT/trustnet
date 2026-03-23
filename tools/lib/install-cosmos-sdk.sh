@@ -502,56 +502,14 @@ cat > /home/warden/trustnet/config/genesis.json << 'GENEOF'
 }
 GENEOF
 
-# Create OpenRC service using printf for reliable quoting through SSH
-sudo tee /etc/init.d/trustnet > /dev/null << RCEOF
-#!/sbin/openrc-run
-name=\"TrustNet Blockchain Node\"
-description=\"TrustNet Blockchain Client\"
-command=/home/warden/trustnetd
-command_args=\"start\"
-command_user=warden
-command_background=yes
-pidfile=/var/run/trustnet.pid
-logfile=/var/log/trustnet/trustnet.log
+# Create OpenRC service by copying pre-made template
+# This avoids heredoc escaping issues completely
+scp -i "$VM_SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    -p "$VM_SSH_PORT" \
+    "${LIB_DIR}/trustnet.service" \
+    "${VM_USERNAME}@localhost:/tmp/trustnet.service" >/dev/null 2>&1
 
-depend() {
-    need net
-}
-
-start_pre() {
-    # Ensure log directory exists with correct permissions
-    mkdir -p /var/log/trustnet
-    chown warden:warden /var/log/trustnet
-    chmod 755 /var/log/trustnet
-}
-
-start() {
-    ebegin \"Starting \$name\"
-    start-stop-daemon --start --background --make-pidfile --pidfile=\"\$pidfile\" \\
-        --user \$command_user --exec \"\$command\" -- \$command_args
-    eend \$?
-}
-
-stop() {
-    ebegin \"Stopping \$name\"
-    start-stop-daemon --stop --pidfile=\"\$pidfile\"
-    eend \$?
-}
-
-status() {
-    if [ -f \"\$pidfile\" ]; then
-        pid=\$(cat \"\$pidfile\")
-        if ps aux | grep -q \"[/]home/warden/trustnetd\"; then
-            einfo \"\$name is running (PID \$pid)\"
-        else
-            ewarn \"\$name crashed (stale pidfile)\"
-        fi
-    else
-        einfo \"\$name is not running\"
-    fi
-}
-RCEOF
-
+sudo cp /tmp/trustnet.service /etc/init.d/trustnet
 sudo chmod +x /etc/init.d/trustnet
 sudo rc-update add trustnet default
 
