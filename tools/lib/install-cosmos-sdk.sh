@@ -288,7 +288,7 @@ build_trustnet_blockchain_inside_vm() {
     scp -i "$VM_SSH_PRIVATE_KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
         -p "$VM_SSH_PORT" \
         "${LIB_DIR}/trustnet.service" \
-        "${VM_USERNAME}@localhost:/tmp/trustnet.service" >/dev/null 2>&1 || {
+        "${VM_USERNAME}@localhost:/tmp/trustnet.service" 2>&1 || {
         echo "[WARNING] Failed to copy trustnet.service - will attempt to deploy manually"
     }
     
